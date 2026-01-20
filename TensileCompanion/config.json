@@ -1,0 +1,14 @@
+{
+  "plot_line_color": "#ff0000",
+  "peak_line_color": "#FF5722",
+  "grid_color": "#CCCCCC",
+  "grid_enabled": true,
+  "x_min": 0.0,
+  "x_max": 60.0,
+  "y_min": 0.0,
+  "y_max": 30.0,
+  "auto_scale_x": true,
+  "auto_scale_y": true,
+  "export_directory": "./exports",
+  "last_com_port": "COM6"
+}
