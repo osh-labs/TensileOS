@@ -34,11 +34,14 @@ class TensileCompanionApp:
             root: Tkinter root window
         """
         self.root = root
-        self.root.title("TensileCompanion - TensileOS Control & Visualization")
-        self.root.geometry("1400x800")
         
         # Initialize components
         self.settings = Settings("config.json")
+        
+        # Get version and set title
+        version = self.settings.get('software_version', '1.0.0')
+        self.root.title(f"TensileCompanion v{version} - TensileOS Control & Visualization")
+        self.root.geometry("1400x800")
         self.data_manager = DataManager(self.settings.get('export_directory'))
         self.test_manager = TestManager(self.settings.get('tests_directory', './Tests'))
         self.serial_handler = SerialHandler(
@@ -76,15 +79,20 @@ class TensileCompanionApp:
         # Create tabs
         self.live_test_tab = ttk.Frame(self.notebook)
         self.test_browser_tab = ttk.Frame(self.notebook)
+        self.settings_tab = ttk.Frame(self.notebook)
         
         self.notebook.add(self.live_test_tab, text="Live Test")
         self.notebook.add(self.test_browser_tab, text="Test Browser")
+        self.notebook.add(self.settings_tab, text="Settings")
         
         # Build Live Test tab
         self._create_live_test_tab()
         
         # Build Test Browser tab
         self._create_test_browser_tab()
+        
+        # Build Settings tab
+        self._create_settings_tab()
     
     def _create_live_test_tab(self):
         """Create the live test tab layout"""
@@ -107,6 +115,140 @@ class TensileCompanionApp:
             on_edit_metadata=self._on_edit_metadata
         )
         self.test_browser.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+    
+    def _create_settings_tab(self):
+        """Create the settings tab"""
+        # Main container
+        settings_container = ttk.Frame(self.settings_tab, padding="20")
+        settings_container.pack(fill=tk.BOTH, expand=True)
+        
+        # Title
+        title_label = ttk.Label(settings_container, text="Application Settings", 
+                               font=("", 14, "bold"))
+        title_label.pack(pady=(0, 20))
+        
+        # Company Information Section
+        company_frame = ttk.LabelFrame(settings_container, text="Company Information", padding="15")
+        company_frame.pack(fill=tk.X, pady=(0, 20))
+        
+        # Company Name
+        ttk.Label(company_frame, text="Company Name:", font=("", 10, "bold")).grid(
+            row=0, column=0, sticky=tk.W, pady=5, padx=5)
+        self.company_var = tk.StringVar(value=self.settings.get('company_name', ''))
+        company_entry = ttk.Entry(company_frame, textvariable=self.company_var, width=40)
+        company_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), pady=5, padx=5)
+        
+        # Technician Management Section
+        tech_frame = ttk.LabelFrame(settings_container, text="Technician Management", padding="15")
+        tech_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 20))
+        
+        # Default Technician
+        ttk.Label(tech_frame, text="Default Technician:", font=("", 10, "bold")).grid(
+            row=0, column=0, sticky=tk.W, pady=5, padx=5)
+        self.default_tech_var = tk.StringVar(value=self.settings.get('last_technician', ''))
+        default_tech_entry = ttk.Entry(tech_frame, textvariable=self.default_tech_var, width=40)
+        default_tech_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), pady=5, padx=5)
+        
+        # Recent Technicians List
+        ttk.Label(tech_frame, text="Recent Technicians:", font=("", 10, "bold")).grid(
+            row=1, column=0, sticky=(tk.W, tk.N), pady=5, padx=5)
+        
+        # Frame for listbox and scrollbar
+        list_frame = ttk.Frame(tech_frame)
+        list_frame.grid(row=1, column=1, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5, padx=5)
+        
+        # Scrollbar
+        tech_scrollbar = ttk.Scrollbar(list_frame)
+        tech_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Listbox
+        self.tech_listbox = tk.Listbox(list_frame, height=6, 
+                                       yscrollcommand=tech_scrollbar.set)
+        self.tech_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        tech_scrollbar.config(command=self.tech_listbox.yview)
+        
+        # Populate listbox
+        for tech in self.settings.get('recent_technicians', []):
+            self.tech_listbox.insert(tk.END, tech)
+        
+        # Buttons for technician list management
+        tech_btn_frame = ttk.Frame(tech_frame)
+        tech_btn_frame.grid(row=2, column=1, sticky=tk.W, pady=5, padx=5)
+        
+        ttk.Button(tech_btn_frame, text="Add Technician", 
+                  command=self._add_technician).pack(side=tk.LEFT, padx=5)
+        ttk.Button(tech_btn_frame, text="Remove Selected", 
+                  command=self._remove_technician).pack(side=tk.LEFT, padx=5)
+        ttk.Button(tech_btn_frame, text="Clear All", 
+                  command=self._clear_technicians).pack(side=tk.LEFT, padx=5)
+        
+        # Configure grid weights
+        tech_frame.columnconfigure(1, weight=1)
+        tech_frame.rowconfigure(1, weight=1)
+        company_frame.columnconfigure(1, weight=1)
+        
+        # Save button
+        save_btn_frame = ttk.Frame(settings_container)
+        save_btn_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        ttk.Button(save_btn_frame, text="Save Settings", 
+                  command=self._save_settings, width=20).pack(side=tk.RIGHT, padx=5)
+    
+    def _add_technician(self):
+        """Add a new technician to the list"""
+        # Simple dialog to get technician name
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Add Technician")
+        dialog.geometry("300x120")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        ttk.Label(dialog, text="Technician Name:").pack(pady=10)
+        name_var = tk.StringVar()
+        entry = ttk.Entry(dialog, textvariable=name_var, width=30)
+        entry.pack(pady=5)
+        entry.focus()
+        
+        def add():
+            name = name_var.get().strip()
+            if name and name not in self.tech_listbox.get(0, tk.END):
+                self.tech_listbox.insert(tk.END, name)
+            dialog.destroy()
+        
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.pack(pady=10)
+        ttk.Button(btn_frame, text="Add", command=add).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Cancel", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
+        
+        entry.bind('<Return>', lambda e: add())
+        dialog.bind('<Escape>', lambda e: dialog.destroy())
+    
+    def _remove_technician(self):
+        """Remove selected technician from the list"""
+        selection = self.tech_listbox.curselection()
+        if selection:
+            self.tech_listbox.delete(selection[0])
+    
+    def _clear_technicians(self):
+        """Clear all technicians from the list"""
+        if messagebox.askyesno("Confirm Clear", 
+                              "Are you sure you want to clear all technicians?",
+                              parent=self.root):
+            self.tech_listbox.delete(0, tk.END)
+    
+    def _save_settings(self):
+        """Save settings from the settings tab"""
+        # Update settings
+        self.settings.set('company_name', self.company_var.get().strip())
+        self.settings.set('last_technician', self.default_tech_var.get().strip())
+        
+        # Update technicians list
+        tech_list = list(self.tech_listbox.get(0, tk.END))
+        self.settings.set('recent_technicians', tech_list)
+        
+        messagebox.showinfo("Settings Saved", 
+                          "Settings have been saved successfully.",
+                          parent=self.root)
     
     def _create_left_panel(self, parent):
         """Create left sidebar for connection controls"""
@@ -703,7 +845,7 @@ class TensileCompanionApp:
             stats = TestStatistics(valid_metadata)
             
             # Show statistics window
-            StatisticsWindow(self.root, valid_metadata, stats)
+            StatisticsWindow(self.root, valid_metadata, stats, self.settings)
             
         except Exception as e:
             messagebox.showerror("Statistics Error", 

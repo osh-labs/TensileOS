@@ -24,16 +24,18 @@ import io
 class StatisticsWindow:
     """Window displaying statistical analysis results"""
     
-    def __init__(self, parent, test_metadata_list: List[Dict[str, str]], statistics_calc):
+    def __init__(self, parent, test_metadata_list: List[Dict[str, str]], statistics_calc, settings=None):
         """Initialize statistics window
         
         Args:
             parent: Parent window
             test_metadata_list: List of test metadata dictionaries
             statistics_calc: TestStatistics instance with calculated values
+            settings: Settings instance for accessing company name
         """
         self.test_metadata_list = test_metadata_list
         self.stats = statistics_calc
+        self.settings = settings
         self.chart_figure = None  # Store figure for PDF export
         
         # Create window
@@ -204,7 +206,7 @@ class StatisticsWindow:
         
         # Treeview
         tree = ttk.Treeview(parent, 
-                           columns=('test_name', 'technician', 'peak', 'deviation'),
+                           columns=('test_name', 'project', 'technician', 'peak', 'deviation'),
                            yscrollcommand=scroll_y.set,
                            xscrollcommand=scroll_x.set,
                            height=8)
@@ -216,29 +218,33 @@ class StatisticsWindow:
         # Configure columns
         tree.heading('#0', text='#')
         tree.heading('test_name', text='Test Name')
+        tree.heading('project', text='Project')
         tree.heading('technician', text='Technician')
         tree.heading('peak', text='Peak (kN)')
         tree.heading('deviation', text='Deviation from Mean')
         
         tree.column('#0', width=40)
-        tree.column('test_name', width=200)
-        tree.column('technician', width=150)
-        tree.column('peak', width=100)
-        tree.column('deviation', width=150)
+        tree.column('test_name', width=180)
+        tree.column('project', width=120)
+        tree.column('technician', width=120)
+        tree.column('peak', width=90)
+        tree.column('deviation', width=110)
         
         # Populate with data
         deviations = self.stats.get_deviations()
         for i, (test_name, peak, deviation) in enumerate(deviations, 1):
-            # Get technician from metadata
+            # Get technician and project from metadata
             technician = ''
+            project = ''
             for test in self.test_metadata_list:
                 if test.get('test_name') == test_name:
                     technician = test.get('technician', '')
+                    project = test.get('project', '')
                     break
             
             deviation_str = f"{deviation:+.3f} kN"
             tree.insert('', 'end', text=str(i),
-                       values=(test_name, technician, f"{peak:.3f}", deviation_str))
+                       values=(test_name, project, technician, f"{peak:.3f}", deviation_str))
     
     def _export_report(self):
         """Export statistical report to PDF"""
@@ -284,9 +290,28 @@ class StatisticsWindow:
             
             # Title
             now = datetime.now()
-            elements.append(Paragraph("Tensitle Testing Statistical Analysis Report", title_style))
+            elements.append(Paragraph("Tensile Testing Statistical Analysis Report", title_style))
+            
+            # Company name if available
+            if self.settings:
+                company_name = self.settings.get('company_name', '')
+                if company_name:
+                    company_style = ParagraphStyle('CompanyStyle', parent=styles['Normal'], alignment=TA_CENTER)
+                    elements.append(Paragraph(company_name, company_style))
+            
+            # Generated timestamp
+            generated_style = ParagraphStyle('GeneratedStyle', parent=styles['Normal'], alignment=TA_CENTER)
             elements.append(Paragraph(f"Generated: {now.strftime('%Y-%m-%d %H:%M:%S')}", 
-                                    styles['Normal']))
+                                    generated_style))
+            
+            # Software version
+            if self.settings:
+                version = self.settings.get('software_version', '')
+                if version:
+                    version_style = ParagraphStyle('VersionStyle', parent=styles['Normal'], 
+                                                   alignment=TA_CENTER, fontSize=9, textColor=colors.grey)
+                    elements.append(Paragraph(f"TensileOS Companion v{version}", version_style))
+            
             elements.append(Spacer(1, 0.15*inch))
             
             # Summary Statistics
@@ -371,29 +396,32 @@ class StatisticsWindow:
             # Individual Test Results
             elements.append(Paragraph("Individual Test Results", heading_style))
             
-            test_data = [['#', 'Test Name', 'Technician', 'Peak (kN)', 'Deviation']]
+            test_data = [['#', 'Test Name', 'Project', 'Technician', 'Peak (kN)', 'Deviation']]
             
             deviations = self.stats.get_deviations()
             for i, (test_name, peak, deviation) in enumerate(deviations, 1):
                 technician = ''
+                project = ''
                 for test in self.test_metadata_list:
                     if test.get('test_name') == test_name:
                         technician = test.get('technician', '')
+                        project = test.get('project', '')
                         break
                 
                 test_data.append([
                     str(i),
-                    test_name[:30],  # Truncate if too long
+                    test_name[:25],  # Truncate if too long
+                    project[:20],
                     technician,
                     f"{peak:.3f}",
                     f"{deviation:+.3f}"
                 ])
             
-            test_table = Table(test_data, colWidths=[0.3*inch, 2*inch, 1.4*inch, 0.9*inch, 0.9*inch])
+            test_table = Table(test_data, colWidths=[0.3*inch, 1.5*inch, 1*inch, 1*inch, 0.8*inch, 0.9*inch])
             test_table.setStyle(TableStyle([
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                 ('ALIGN', (0, 0), (0, -1), 'CENTER'),  # Center # column
-                ('ALIGN', (3, 0), (4, -1), 'RIGHT'),  # Right-align numbers
+                ('ALIGN', (4, 0), (5, -1), 'RIGHT'),  # Right-align numbers
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
                 ('FONTSIZE', (0, 0), (-1, -1), 9),

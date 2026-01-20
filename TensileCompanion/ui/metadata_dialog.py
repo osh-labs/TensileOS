@@ -26,7 +26,7 @@ class MetadataDialog:
         # Create modal dialog
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Test Metadata")
-        self.dialog.geometry("500x400")
+        self.dialog.geometry("500x450")
         self.dialog.transient(parent)
         self.dialog.grab_set()
         
@@ -74,33 +74,40 @@ class MetadataDialog:
             technician_entry = ttk.Entry(main_frame, textvariable=self.technician_var, width=40)
             technician_entry.grid(row=2, column=1, sticky=(tk.W, tk.E), pady=5)
         
+        # Project (Optional)
+        ttk.Label(main_frame, text="Project:", font=("", 10)).grid(
+            row=3, column=0, sticky=tk.W, pady=5)
+        self.project_var = tk.StringVar()
+        project_entry = ttk.Entry(main_frame, textvariable=self.project_var, width=40)
+        project_entry.grid(row=3, column=1, sticky=(tk.W, tk.E), pady=5)
+        
         # Date/Time (Auto-filled, display only)
         ttk.Label(main_frame, text="Date/Time:", font=("", 10)).grid(
-            row=3, column=0, sticky=tk.W, pady=5)
+            row=4, column=0, sticky=tk.W, pady=5)
         self.datetime_var = tk.StringVar(value=datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         datetime_label = ttk.Label(main_frame, textvariable=self.datetime_var, 
                                    foreground="gray")
-        datetime_label.grid(row=3, column=1, sticky=tk.W, pady=5)
+        datetime_label.grid(row=4, column=1, sticky=tk.W, pady=5)
         
         # Notes (Optional)
         ttk.Label(main_frame, text="Notes:", font=("", 10)).grid(
-            row=4, column=0, sticky=(tk.W, tk.N), pady=5)
+            row=5, column=0, sticky=(tk.W, tk.N), pady=5)
         self.notes_text = tk.Text(main_frame, height=8, width=40, wrap=tk.WORD)
-        self.notes_text.grid(row=4, column=1, sticky=(tk.W, tk.E), pady=5)
+        self.notes_text.grid(row=5, column=1, sticky=(tk.W, tk.E), pady=5)
         
         # Scrollbar for notes
         notes_scroll = ttk.Scrollbar(main_frame, command=self.notes_text.yview)
-        notes_scroll.grid(row=4, column=2, sticky=(tk.N, tk.S))
+        notes_scroll.grid(row=5, column=2, sticky=(tk.N, tk.S))
         self.notes_text.config(yscrollcommand=notes_scroll.set)
         
         # Required fields notice
         required_label = ttk.Label(main_frame, text="* Required fields", 
                                    font=("", 8), foreground="red")
-        required_label.grid(row=5, column=0, columnspan=2, sticky=tk.W, pady=(10, 5))
+        required_label.grid(row=6, column=0, columnspan=2, sticky=tk.W, pady=(10, 5))
         
         # Buttons frame
         button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=6, column=0, columnspan=2, pady=(20, 0))
+        button_frame.grid(row=7, column=0, columnspan=2, pady=(20, 0))
         
         ttk.Button(button_frame, text="Start Test", command=self._on_ok, 
                   width=15).pack(side=tk.LEFT, padx=5)
@@ -135,6 +142,7 @@ class MetadataDialog:
         self.result = {
             "test_name": test_name,
             "technician": technician,
+            "project": self.project_var.get().strip(),
             "datetime": self.datetime_var.get(),
             "notes": notes
         }

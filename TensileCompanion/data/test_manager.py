@@ -68,6 +68,11 @@ class TestManager:
             f.write(f"# Date: {metadata.get('datetime', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))}\n")
             f.write(f"# Technician: {metadata.get('technician', 'Unknown')}\n")
             
+            # Write project if present
+            project = metadata.get('project', '').strip()
+            if project:
+                f.write(f"# Project: {project}\n")
+            
             # Calculate and write peak force
             peak_force = peak_readings[-1] if peak_readings else 0.0
             f.write(f"# Peak Force: {peak_force:.3f} kN\n")
@@ -105,8 +110,7 @@ class TestManager:
         metadata = {
             'test_name': '',
             'datetime': '',
-            'technician': '',
-            'peak_force': '',
+            'technician': '',            'project': '',            'peak_force': '',
             'notes': '',
             'filepath': str(filepath)
         }
@@ -128,6 +132,8 @@ class TestManager:
                         metadata['datetime'] = content[5:].strip()
                     elif content.startswith('Technician:'):
                         metadata['technician'] = content[11:].strip()
+                    elif content.startswith('Project:'):
+                        metadata['project'] = content[8:].strip()
                     elif content.startswith('Peak Force:'):
                         # Remove " kN" unit suffix before storing
                         peak_str = content[11:].strip()

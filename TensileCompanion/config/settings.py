@@ -26,7 +26,8 @@ class Settings:
         "tests_directory": "./Tests",
         "last_com_port": "",
         "last_technician": "",
-        "recent_technicians": []
+        "recent_technicians": [],
+        "company_name": ""
     }
     
     def __init__(self, config_path="config.json"):
