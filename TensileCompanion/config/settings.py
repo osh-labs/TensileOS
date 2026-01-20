@@ -23,7 +23,10 @@ class Settings:
         "auto_scale_x": True,
         "auto_scale_y": True,
         "export_directory": "./exports",
-        "last_com_port": ""
+        "tests_directory": "./Tests",
+        "last_com_port": "",
+        "last_technician": "",
+        "recent_technicians": []
     }
     
     def __init__(self, config_path="config.json"):

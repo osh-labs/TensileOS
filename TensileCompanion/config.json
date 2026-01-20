@@ -10,5 +10,10 @@
   "auto_scale_x": true,
   "auto_scale_y": true,
   "export_directory": "./exports",
-  "last_com_port": "COM6"
+  "tests_directory": "./Tests",
+  "last_com_port": "COM6",
+  "last_technician": "Chris Lee",
+  "recent_technicians": [
+    "Chris Lee"
+  ]
 }

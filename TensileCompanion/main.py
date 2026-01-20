@@ -7,14 +7,21 @@ import tkinter as tk
 from tkinter import ttk, filedialog, colorchooser, messagebox
 import sys
 from pathlib import Path
+from typing import List, Dict
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
 from utils.serial_handler import SerialHandler
 from data.data_manager import DataManager
+from data.test_manager import TestManager
 from visualization.plotter import TensilePlotter
 from config.settings import Settings
+from ui.metadata_dialog import MetadataDialog
+from ui.metadata_edit_dialog import MetadataEditDialog
+from ui.test_browser import TestBrowser
+from ui.statistics_window import StatisticsWindow
+from analysis.statistics import TestStatistics
 
 
 class TensileCompanionApp:
@@ -33,6 +40,7 @@ class TensileCompanionApp:
         # Initialize components
         self.settings = Settings("config.json")
         self.data_manager = DataManager(self.settings.get('export_directory'))
+        self.test_manager = TestManager(self.settings.get('tests_directory', './Tests'))
         self.serial_handler = SerialHandler(
             data_callback=self.on_data_received,
             error_callback=self.on_error,
@@ -41,6 +49,7 @@ class TensileCompanionApp:
         
         # State variables
         self.is_test_running = False
+        self.has_metadata = False  # Track if current session is a formal test with metadata
         
         # Build GUI
         self._create_gui()
@@ -57,13 +66,47 @@ class TensileCompanionApp:
         # Configure grid weights
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
-        main_container.columnconfigure(1, weight=1)
+        main_container.columnconfigure(0, weight=1)
         main_container.rowconfigure(0, weight=1)
         
+        # Create notebook (tabbed interface)
+        self.notebook = ttk.Notebook(main_container)
+        self.notebook.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        
+        # Create tabs
+        self.live_test_tab = ttk.Frame(self.notebook)
+        self.test_browser_tab = ttk.Frame(self.notebook)
+        
+        self.notebook.add(self.live_test_tab, text="Live Test")
+        self.notebook.add(self.test_browser_tab, text="Test Browser")
+        
+        # Build Live Test tab
+        self._create_live_test_tab()
+        
+        # Build Test Browser tab
+        self._create_test_browser_tab()
+    
+    def _create_live_test_tab(self):
+        """Create the live test tab layout"""
+        # Configure grid for three-panel layout
+        self.live_test_tab.columnconfigure(1, weight=1)
+        self.live_test_tab.rowconfigure(0, weight=1)
+        
         # Create three panels
-        self._create_left_panel(main_container)
-        self._create_center_panel(main_container)
-        self._create_right_panel(main_container)
+        self._create_left_panel(self.live_test_tab)
+        self._create_center_panel(self.live_test_tab)
+        self._create_right_panel(self.live_test_tab)
+    
+    def _create_test_browser_tab(self):
+        """Create the test browser tab"""
+        # Create test browser
+        self.test_browser = TestBrowser(
+            self.test_browser_tab,
+            self.test_manager,
+            on_calculate_stats=self._on_calculate_statistics,
+            on_edit_metadata=self._on_edit_metadata
+        )
+        self.test_browser.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
     
     def _create_left_panel(self, parent):
         """Create left sidebar for connection controls"""
@@ -97,9 +140,12 @@ class TensileCompanionApp:
         self.error_text.pack(fill=tk.BOTH, expand=True, pady=5)
         
         # Debug toggle
-        self.debug_var = tk.BooleanVar(value=False)
+        self.debug_var = tk.BooleanVar(value=False)  # Start with debug disabled
         ttk.Checkbutton(left_frame, text="Debug to Console", variable=self.debug_var,
                        command=self._toggle_debug).pack(anchor=tk.W, pady=5)
+        
+        # Enable debug immediately
+        self._toggle_debug()
         
         # Raw serial data display
         ttk.Label(left_frame, text="Raw Serial Data:").pack(anchor=tk.W, pady=(10, 2))
@@ -147,12 +193,16 @@ class TensileCompanionApp:
         control_frame = ttk.Frame(center_frame)
         control_frame.grid(row=1, column=0, pady=10)
         
-        self.new_test_btn = ttk.Button(control_frame, text="New Test (Auto-Export)", 
+        self.new_test_btn = ttk.Button(control_frame, text="New Test", 
                                        command=self._new_test, state=tk.DISABLED)
         self.new_test_btn.pack(side=tk.LEFT, padx=5)
         
-        self.discard_btn = ttk.Button(control_frame, text="Discard & New Test", 
-                                      command=self._discard_and_new, state=tk.DISABLED)
+        self.save_test_btn = ttk.Button(control_frame, text="Save Test", 
+                                        command=self._save_test, state=tk.DISABLED)
+        self.save_test_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.discard_btn = ttk.Button(control_frame, text="Discard Data", 
+                                      command=self._discard_data, state=tk.DISABLED)
         self.discard_btn.pack(side=tk.LEFT, padx=5)
         
         self.pause_btn = ttk.Button(control_frame, text="Pause", 
@@ -302,17 +352,20 @@ class TensileCompanionApp:
         if self.serial_handler.connect(port):
             self.status_label.config(text="Connected", foreground="green")
             self.connect_btn.config(text="Disconnect")
+            # Enable all control buttons - device is ready
             self.new_test_btn.config(state=tk.NORMAL)
+            self.save_test_btn.config(state=tk.NORMAL)
             self.discard_btn.config(state=tk.NORMAL)
             self.pause_btn.config(state=tk.NORMAL)
-            self.resume_btn.config(state=tk.NORMAL)
+            self.resume_btn.config(state=tk.NORMAL)  # Always enabled
             self.reconnect_btn.pack_forget()
             
             # Save last used port
             self.settings.set('last_com_port', port)
             
-            # Start a new test
-            self.is_test_running = True
+            # Device is paused, waiting for user action
+            self.is_test_running = False
+            self.has_metadata = False
         else:
             messagebox.showerror("Connection Error", "Failed to connect to device")
     
@@ -322,10 +375,12 @@ class TensileCompanionApp:
         self.status_label.config(text="Disconnected", foreground="red")
         self.connect_btn.config(text="Connect")
         self.new_test_btn.config(state=tk.DISABLED)
+        self.save_test_btn.config(state=tk.DISABLED)
         self.discard_btn.config(state=tk.DISABLED)
         self.pause_btn.config(state=tk.DISABLED)
         self.resume_btn.config(state=tk.DISABLED)
         self.is_test_running = False
+        self.has_metadata = False
     
     def _reconnect(self):
         """Attempt to reconnect"""
@@ -334,38 +389,121 @@ class TensileCompanionApp:
         self._connect()
     
     def _new_test(self):
-        """Start new test with auto-export of current test"""
-        if self.data_manager.has_data():
-            try:
-                filepath = self.data_manager.save_current_test()
-                messagebox.showinfo("Test Saved", f"Test data exported to:\n{filepath}")
-            except Exception as e:
-                messagebox.showerror("Export Error", f"Failed to save test:\n{str(e)}")
+        """Start new test with metadata capture"""
+        # Show metadata dialog for NEW test
+        dialog = MetadataDialog(
+            self.root, 
+            last_technician=self.settings.get('last_technician', ''),
+            recent_technicians=self.settings.get('recent_technicians', [])
+        )
+        metadata = dialog.get_result()
         
-        # Clear data and plot
+        # Check if user cancelled
+        if metadata is None:
+            return
+        
+        # Save technician for next time
+        self.settings.set('last_technician', metadata.get('technician', ''))
+        
+        # Update recent technicians list
+        recent = self.settings.get('recent_technicians', [])
+        technician = metadata.get('technician', '')
+        if technician and technician not in recent:
+            recent.insert(0, technician)
+            recent = recent[:10]  # Keep last 10
+            self.settings.set('recent_technicians', recent)
+        
+        # Clear data and plot FIRST
         self.data_manager.clear()
         self.plotter.clear_plot()
+        
+        # THEN set metadata for the new test (after clearing)
+        self.data_manager.set_test_metadata(metadata)
+        self.has_metadata = True  # Mark this as a formal test with metadata
         
         # Send command to device
         if self.serial_handler.is_connected():
             self.serial_handler.send_start_new_test()
             self.is_test_running = True
+            
+            # Update chart title with test name
+            test_name = metadata.get('test_name', 'Test')
+            self.plotter.set_title(f"Real-Time Force Measurement - {test_name}")
+            
+            # Update button states
+            self.pause_btn.config(state=tk.NORMAL)
+            # Resume button always enabled
     
-    def _discard_and_new(self):
-        """Discard current test and start new without saving"""
+    def _save_test(self):
+        """Save current test data to file"""
+        if not self.data_manager.has_data():
+            messagebox.showwarning("No Data", "No test data to save.", parent=self.root)
+            return
+        
+        try:
+            # Get metadata from data_manager
+            metadata = self.data_manager.get_test_metadata()
+            
+            if metadata is None:
+                messagebox.showerror("No Metadata", 
+                                   "Test has no metadata. Please start tests using 'New Test' button.",
+                                   parent=self.root)
+                return
+            
+            # Get test data
+            timestamps, currents, peaks = self.data_manager.get_data()
+            
+            # Calculate peak force
+            if peaks:
+                peak_force = max(peaks)
+            else:
+                peak_force = 0.0
+            
+            # Add peak force to metadata
+            metadata['peak_force'] = f"{peak_force:.3f}"
+            
+            # Generate filepath
+            filepath = self.test_manager.generate_test_filepath(
+                test_name=metadata.get('test_name', 'test'),
+                test_datetime=metadata.get('datetime')
+            )
+            
+            # Save using TestManager
+            self.test_manager.save_test_with_metadata(
+                filepath=filepath,
+                metadata=metadata,
+                timestamps=timestamps,
+                current_readings=currents,
+                peak_readings=peaks
+            )
+            
+            messagebox.showinfo("Test Saved", f"Test data exported to:\n{filepath}", parent=self.root)
+            
+            # Clear data after successful save
+            self.data_manager.clear()
+            self.plotter.clear_plot()
+            self.peak_label.config(text="0.000 kN")
+            
+            # Clear test state but keep buttons enabled for live viewing or new test
+            self.is_test_running = False
+            self.has_metadata = False
+            
+        except Exception as e:
+            messagebox.showerror("Save Error", f"Failed to save test:\n{str(e)}", parent=self.root)
+    
+    def _discard_data(self):
+        """Discard current test data without saving"""
         if self.data_manager.has_data():
-            if messagebox.askyesno("Confirm", "Discard current test data without saving?"):
-                self.data_manager.discard_current_test()
+            if messagebox.askyesno("Confirm", "Discard current test data without saving?", parent=self.root):
+                self.data_manager.clear()
                 self.plotter.clear_plot()
+                self.peak_label.config(text="0.000 kN")
                 
-                if self.serial_handler.is_connected():
-                    self.serial_handler.send_start_new_test()
-                    self.is_test_running = True
+                # Clear test state but keep buttons enabled
+                self.is_test_running = False
+                self.has_metadata = False
         else:
-            # No data, just start fresh
-            if self.serial_handler.is_connected():
-                self.serial_handler.send_start_new_test()
-                self.is_test_running = True
+            messagebox.showinfo("No Data", "No test data to discard.", parent=self.root)
     
     def _pause_test(self):
         """Pause measurement"""
@@ -524,6 +662,90 @@ class TensileCompanionApp:
         if self.serial_handler.is_connected():
             self.serial_handler.disconnect()
         self.root.destroy()
+    
+    def _on_calculate_statistics(self, test_metadata_list: List[Dict[str, str]]):
+        """Callback for calculating statistics on selected tests
+        
+        Args:
+            test_metadata_list: List of test metadata dictionaries
+        """
+        if not test_metadata_list:
+            messagebox.showwarning("No Tests Selected", 
+                                 "Please select at least one test to calculate statistics.",
+                                 parent=self.root)
+            return
+        
+        if len(test_metadata_list) < 2:
+            messagebox.showwarning("Insufficient Tests", 
+                                 "Please select at least 2 tests for statistical analysis.",
+                                 parent=self.root)
+            return
+        
+        try:
+            # Extract peak forces from metadata
+            peak_forces = []
+            valid_metadata = []
+            
+            for metadata in test_metadata_list:
+                if metadata and 'peak_force' in metadata:
+                    try:
+                        peak_forces.append(float(metadata['peak_force']))
+                        valid_metadata.append(metadata)
+                    except (ValueError, TypeError):
+                        pass
+            
+            if not peak_forces:
+                messagebox.showerror("Error", "Could not read peak forces from selected tests.",
+                                   parent=self.root)
+                return
+            
+            # Calculate statistics
+            stats = TestStatistics(valid_metadata)
+            
+            # Show statistics window
+            StatisticsWindow(self.root, valid_metadata, stats)
+            
+        except Exception as e:
+            messagebox.showerror("Statistics Error", 
+                               f"Failed to calculate statistics:\n{str(e)}",
+                               parent=self.root)
+    
+    def _on_edit_metadata(self, metadata: Dict[str, str]):
+        """Callback for editing test metadata
+        
+        Args:
+            metadata: Test metadata dictionary
+        """
+        try:
+            if not metadata:
+                messagebox.showerror("Error", "Invalid test metadata.",
+                                   parent=self.root)
+                return
+            
+            # Get filepath from metadata
+            filepath = metadata.get('filepath')
+            if not filepath:
+                messagebox.showerror("Error", "Test file path not found.",
+                                   parent=self.root)
+                return
+            
+            # Show edit dialog
+            dialog = MetadataEditDialog(self.root, metadata)
+            updated_metadata = dialog.get_result()
+            
+            if updated_metadata:
+                # Update metadata in file
+                self.test_manager.update_test_metadata(filepath, updated_metadata)
+                messagebox.showinfo("Success", "Test metadata updated successfully.",
+                                  parent=self.root)
+                
+                # Refresh test browser
+                self.test_browser.refresh()
+        
+        except Exception as e:
+            messagebox.showerror("Edit Error", 
+                               f"Failed to update metadata:\n{str(e)}",
+                               parent=self.root)
 
 
 def main():

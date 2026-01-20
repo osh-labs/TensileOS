@@ -32,6 +32,7 @@ class SerialHandler:
         self.reading_thread: Optional[threading.Thread] = None
         self.stop_reading = False
         self.debug_enabled = False
+        self.device_paused = True  # Device starts in pause mode
         
     @staticmethod
     def list_ports():
@@ -60,19 +61,26 @@ class SerialHandler:
                 timeout=1
             )
             
-            # Wait for device to initialize
-            time.sleep(2)
+            # Wait for device to initialize (calibration output during setup)
+            time.sleep(3)
             
-            # Clear any startup data
+            # Clear calibration output and any startup data
             self.serial_port.reset_input_buffer()
             
-            # Activate JSON mode
+            # Device starts paused - send 'j' to switch to JSON mode
             self.send_command('j')
-            time.sleep(0.5)
+            time.sleep(0.8)  # Increased wait for mode switch
             
-            # Start a new test (sends 'x' to exit pause mode and begin measuring)
+            # After 'j', device exits menu and starts running (pause_mode = false)
+            # So we need to pause it again with 'x'
             self.send_command('x')
-            time.sleep(0.5)
+            time.sleep(0.5)  # Increased wait for pause
+            
+            # Now device is paused in JSON mode
+            self.device_paused = True
+            
+            # Clear any menu text from buffer
+            self.serial_port.reset_input_buffer()
             
             # Start reading thread
             self.connected = True
@@ -173,15 +181,28 @@ class SerialHandler:
     
     def send_start_new_test(self):
         """Send command to start a new test (resets peak and timestamp)"""
+        if not self.device_paused:
+            # If device is running, pause it first
+            self.send_command('x')
+            time.sleep(0.3)
+            self.device_paused = True
+        
+        # Now device is paused, send 'x' to start new test (resets peak and timestamp)
         self.send_command('x')
+        time.sleep(0.2)
+        self.device_paused = False
     
     def send_pause(self):
         """Send command to pause measurements"""
-        self.send_command('x')
+        if not self.device_paused:
+            self.send_command('x')
+            self.device_paused = True
     
     def send_resume(self):
         """Send command to resume measurements"""
-        self.send_command('r')
+        if self.device_paused:
+            self.send_command('r')
+            self.device_paused = False
     
     def is_connected(self) -> bool:
         """Check if connected to device

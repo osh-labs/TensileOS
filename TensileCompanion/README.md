@@ -8,16 +8,36 @@ TensileCompanion is a Python-based desktop application that provides real-time f
 
 ## Features
 
+### Live Testing
 - **Real-Time Visualization**: Live plotting of force vs. time at 2 Hz measurement rate
 - **Automatic JSON Mode**: Connects and automatically switches device to JSON output
 - **Test Control**: Start new tests, pause, resume, and discard data
-- **Auto-Export**: Automatically exports test data to CSV when starting a new test
-- **Customizable Display**: User-configurable plot colors, axis scaling, and grid settings
 - **Peak Force Tracking**: Real-time display of peak force with visual indicator
 - **Raw Serial Monitor**: Live display of all incoming serial data in the connection panel
 - **Debug Console Toggle**: Optional detailed debugging output to console
-- **Error Handling**: Connection error display with manual reconnect capability
+- **Customizable Display**: User-configurable plot colors, axis scaling, and grid settings
+
+### Multi-Test Management
+- **Metadata Capture**: Required test name and technician for each test
+- **Date-Organized Storage**: Tests automatically organized in YYYY-MM-DD folders
+- **Test Browser**: Tree view for browsing and selecting historical tests
+- **Metadata Preview**: View test details (name, technician, datetime, peak force, notes)
+- **Edit Capability**: Modify test metadata after test completion
+- **Recent Technicians**: Dropdown with last 10 technicians for quick selection
+
+### Statistical Analysis
+- **Multi-Test Selection**: Select multiple tests via checkboxes
+- **Statistical Summary**: Mean, standard deviation, 3-sigma range, min/max, median
+- **Visual Charts**: Bar chart with individual peaks, mean line, and ±3σ bounds
+- **Deviation Analysis**: Shows each test's deviation from mean
+- **Export Reports**: Save statistical analysis to CSV with full metadata
+
+### Data Management
+- **Auto-Export**: Automatically exports test data to CSV when starting a new test
+- **CSV Format**: Timestamp (s), Current Force (kN), Peak Force (kN)
+- **Metadata Headers**: Test info stored as # comment lines at top of CSV
 - **Persistent Settings**: All preferences saved between sessions
+- **Error Handling**: Connection error display with manual reconnect capability
 
 ## Requirements
 
@@ -56,6 +76,8 @@ python main.py
 
 ### Workflow
 
+#### Live Test Tab
+
 1. **Connect to Device**
    - Select your COM port from the dropdown (e.g., COM3, /dev/ttyUSB0)
    - Click "Refresh Ports" if your device isn't listed
@@ -64,29 +86,71 @@ python main.py
    - **Raw Serial Data**: View all incoming serial data in real-time in the "Raw Serial Data" text area
    - **Connection Errors**: Any connection issues are displayed in the red error box
 
-2. **Run a Test**
-   - Once connected, measurements begin automatically
+2. **Capture Test Metadata**
+   - Click "New Test (Auto-Export)"
+   - Enter required metadata:
+     - **Test Name**: Descriptive name for the test
+     - **Technician**: Name of person conducting test (dropdown shows recent names)
+     - **Notes**: Optional test notes or observations
+   - Date/time are automatically captured
+   - Click OK to begin test (Cancel to abort)
+
+3. **Run a Test**
+   - Once metadata is confirmed, measurements begin automatically
    - Monitor real-time force on the live plot
    - Peak force is displayed in the bottom center and as a horizontal line
    - All raw serial communication is visible in the left panel
 
-3. **Debug Mode**
+4. **Debug Mode**
    - Check "Debug to Console" in the left panel to enable detailed console logging
    - Useful for troubleshooting connection or data parsing issues
    - Displays raw serial, JSON detection, and parsed data in the terminal
 
-3. **Start New Test**
+5. **Start Next Test**
    - Click "New Test (Auto-Export)" to:
-     - Export current test data to `exports/test_YYYYMMDD_HHMMSS.csv`
+     - Automatically save current test with metadata to `Tests/YYYY-MM-DD/testname_HHMMSS.csv`
+     - Show metadata dialog for next test
      - Clear plot and reset peak tracking
      - Send new test command to device (resets timestamp)
 
-4. **Discard Test**
+6. **Discard Test**
    - Click "Discard & New Test" to start fresh without saving current data
 
-5. **Pause/Resume**
+7. **Pause/Resume**
    - Use "Pause" and "Resume" buttons to control data collection
    - Data continues to buffer during pause
+
+#### Test Browser Tab
+
+1. **Browse Historical Tests**
+   - Switch to "Test Browser" tab
+   - Click "Refresh" to load available tests
+   - Tests are organized by date folders (YYYY-MM-DD)
+   - Expand date folders to see individual tests
+
+2. **View Test Details**
+   - Click on any test to view metadata preview:
+     - Test name
+     - Technician
+     - Date/time
+     - Peak force
+     - Notes
+
+3. **Edit Metadata**
+   - Select a test
+   - Click "Edit Metadata"
+   - Modify test name, technician, or notes
+   - Date/time and peak force are read-only
+   - Click OK to save changes
+
+4. **Calculate Statistics**
+   - Select checkboxes next to 2 or more tests
+   - Click "Calculate Statistics"
+   - View statistical analysis window with:
+     - Summary statistics (mean, std dev, 3-sigma, min/max, median)
+     - Bar chart showing individual peaks with mean and ±3σ lines
+     - Individual test deviation table
+   - Click "Export Report" to save statistics as CSV
 
 ### Debugging and Monitoring
 
@@ -120,9 +184,15 @@ The left connection panel provides several monitoring tools:
 
 ### Data Export Format
 
-CSV files are saved with the following format:
+CSV files are saved with metadata headers and test data:
 
 ```csv
+# TensileOS Test Data Export
+# test_name: Sample_Test_1
+# technician: John Doe
+# datetime: 2024-01-15 14:30:45
+# notes: First test of the day
+# peak_force: 24.567
 timestamp_s,current_kN,peak_kN
 0.000,0.125,0.125
 0.500,0.342,0.342
@@ -130,10 +200,22 @@ timestamp_s,current_kN,peak_kN
 1.500,2.500,2.500
 ```
 
-**Columns:**
+**Metadata Headers (prefixed with #):**
+- `test_name`: User-provided test name
+- `technician`: Name of person conducting test
+- `datetime`: Test date and time (YYYY-MM-DD HH:MM:SS)
+- `notes`: Optional test notes
+- `peak_force`: Maximum force reached during test (kN)
+
+**Data Columns:**
 - `timestamp_s`: Test time in seconds (resets for each new test)
 - `current_kN`: Current force reading in kilonewtons
 - `peak_kN`: Peak force reading in kilonewtons (cumulative max)
+
+**File Organization:**
+- Location: `./Tests/YYYY-MM-DD/`
+- Naming: `testname_HHMMSS.csv`
+- Example: `./Tests/2024-01-15/Sample_Test_1_143045.csv`
 
 ## Configuration
 
@@ -143,7 +225,10 @@ Settings are automatically saved to `config.json` in the application directory. 
 - Grid settings
 - Axis scaling preferences
 - Last used COM port
-- Export directory
+- Export directory (deprecated, now uses Tests directory)
+- Tests directory (default: `./Tests`)
+- Last technician name (for auto-fill)
+- Recent technicians list (last 10)
 
 Click "Restore Defaults" to reset all settings to factory values.
 

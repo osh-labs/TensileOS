@@ -78,14 +78,20 @@ class TensilePlotter:
             
             # Auto-scale axes if enabled
             if self.settings.get('auto_scale_x', True):
-                self.ax.set_xlim(0, max(self.timestamps) * 1.1 if self.timestamps else 1)
+                max_time = max(self.timestamps) if self.timestamps else 1
+                self.ax.set_xlim(0, max(max_time * 1.1, 10))  # At least 10 seconds visible
+            else:
+                self.ax.set_xlim(self.settings.get('x_min', 0), self.settings.get('x_max', 60))
             
             if self.settings.get('auto_scale_y', True):
                 max_reading = max(self.current_readings) if self.current_readings else 1
-                self.ax.set_ylim(0, max_reading * 1.2)
+                self.ax.set_ylim(0, max(max_reading * 1.2, 5))  # At least 5 kN visible
+            else:
+                self.ax.set_ylim(self.settings.get('y_min', 0), self.settings.get('y_max', 30))
         
         # Redraw canvas
         self.canvas.draw()
+        self.canvas.flush_events()
     
     def clear_plot(self):
         """Clear all data from plot"""
@@ -96,10 +102,19 @@ class TensilePlotter:
         self.current_line.set_data([], [])
         self.peak_line.set_ydata([0, 0])
         
-        self.ax.set_xlim(0, 10)
-        self.ax.set_ylim(0, 10)
+        # Reset to reasonable defaults or respect settings
+        if self.settings.get('auto_scale_x', True):
+            self.ax.set_xlim(0, 60)
+        else:
+            self.ax.set_xlim(self.settings.get('x_min', 0), self.settings.get('x_max', 60))
+        
+        if self.settings.get('auto_scale_y', True):
+            self.ax.set_ylim(0, 30)
+        else:
+            self.ax.set_ylim(self.settings.get('y_min', 0), self.settings.get('y_max', 30))
         
         self.canvas.draw()
+        self.canvas.flush_events()
     
     def apply_settings(self, settings: dict):
         """Apply visual settings to plot
@@ -144,3 +159,13 @@ class TensilePlotter:
             Canvas widget for packing in GUI
         """
         return self.canvas_widget
+    
+    def set_title(self, title: str):
+        """Update the plot title
+        
+        Args:
+            title: New title for the plot
+        """
+        self.ax.set_title(title, fontsize=12, fontweight='bold')
+        self.canvas.draw()
+        self.canvas.flush_events()

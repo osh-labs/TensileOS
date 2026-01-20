@@ -1,12 +1,12 @@
 """
 Data manager for TensileOS test data
-Handles data buffering, CSV export, and test session management
+Handles data buffering, CSV export, test session management, and metadata
 """
 
 import csv
 from datetime import datetime
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Dict
 
 
 class DataManager:
@@ -16,13 +16,14 @@ class DataManager:
         """Initialize data manager
         
         Args:
-            export_directory: Directory for CSV exports
+            export_directory: Directory for CSV exports (legacy, kept for compatibility)
         """
         self.export_directory = Path(export_directory)
         self.timestamps: List[float] = []
         self.current_readings: List[float] = []
         self.peak_readings: List[float] = []
         self.test_start_time = datetime.now()
+        self.test_metadata: Optional[Dict[str, str]] = None
         
         # Create export directory if it doesn't exist
         self.export_directory.mkdir(parents=True, exist_ok=True)
@@ -56,6 +57,22 @@ class DataManager:
             Peak force in kN, or 0 if no data
         """
         return self.peak_readings[-1] if self.peak_readings else 0.0
+    
+    def set_test_metadata(self, metadata: Dict[str, str]):
+        """Set metadata for current test
+        
+        Args:
+            metadata: Dictionary containing test metadata
+        """
+        self.test_metadata = metadata
+    
+    def get_test_metadata(self) -> Optional[Dict[str, str]]:
+        """Get current test metadata
+        
+        Returns:
+            Metadata dictionary or None
+        """
+        return self.test_metadata
     
     def has_data(self) -> bool:
         """Check if current test has any data
@@ -104,6 +121,7 @@ class DataManager:
         self.current_readings.clear()
         self.peak_readings.clear()
         self.test_start_time = datetime.now()
+        self.test_metadata = None
     
     def set_export_directory(self, directory: str):
         """Set the export directory
