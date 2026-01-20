@@ -19,11 +19,12 @@ TensileOS provides a simple serial interface for real-time force measurements in
 
 - **Real-time Force Measurement**: Continuous readings at 2 Hz (500ms intervals)
 - **Peak Force Tracking**: Automatically records and maintains maximum reading
+- **Test Timestamp Tracking**: Independent test timer in decimal seconds, reset with each new test
 - **Multi-Point Calibration**: 10-point calibration curve for accurate measurements across range
 - **Interactive Serial Interface**: Simple command-driven control
 - **Dual Output Formats**: Toggle between CSV and JSON output modes
   - CSV format for simple logging
-  - JSON format with timestamps for data visualization applications
+  - JSON format with test-relative timestamps for data visualization applications
 - **Modular Code Architecture**: Clean, maintainable function-based design
 
 ## Serial Interface
@@ -42,11 +43,11 @@ current_reading,max_reading
 
 **JSON Format:**
 ```json
-{"timestamp":12345,"current":1.234,"peak":5.678}
-{"timestamp":12845,"current":2.345,"peak":5.678}
+{"timestamp":12.345,"current":1.234,"peak":5.678}
+{"timestamp":12.845,"current":2.345,"peak":5.678}
 ```
 
-Both formats output forces in kilonewtons (kN) with measurements taken at 2 Hz. JSON format includes millisecond timestamps since device startup for time-series visualization.
+Both formats output forces in kilonewtons (kN) with measurements taken at 2 Hz. JSON format includes test timestamps in decimal seconds (relative to test start) for time-series visualization.
 
 ### Commands
 
@@ -55,7 +56,7 @@ During normal operation:
 
 In pause menu:
 - **`r`** - Resume measurements (keep peak reading)
-- **`x`** - Clear peak reading and resume measurements
+- **`x`** - Start new test (resets peak reading and test timestamp)
 - **`j`** - Toggle output format between CSV and JSON
 - **`c`** - Enter calibration mode *(future feature)*
 
@@ -117,9 +118,10 @@ Dependencies are managed automatically by PlatformIO via `platformio.ini`.
 5. Press `x` to pause and view the peak force
 6. Press `j` to toggle to JSON mode for data visualization:
    ```json
-   {"timestamp":5234,"current":1.250,"peak":2.500}
+   {"timestamp":5.234,"current":1.250,"peak":2.500}
    ```
-7. Use menu options to resume, reset, or change output format
+7. Press `x` again to start a new test (resets peak and timestamp)
+8. Use menu options to resume, start new test, or change output format
 
 ## Example Data Logging
 
@@ -144,7 +146,7 @@ while True:
     line = ser.readline().decode('utf-8').strip()
     if line.startswith('{'):
         data = json.loads(line)
-        print(f"Time: {data['timestamp']}ms, Current: {data['current']}kN, Peak: {data['peak']}kN")
+        print(f"Time: {data['timestamp']:.3f}s, Current: {data['current']}kN, Peak: {data['peak']}kN")
         # Add your visualization code here
 ```
 

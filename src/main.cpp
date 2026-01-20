@@ -14,6 +14,7 @@ uint8_t clockPin = 3;
 
 float current_reading;
 float max_reading;
+unsigned long test_start_time; // Timestamp when test started
 
 const byte escape_character = 'x'; //This is the ASCII character we look for to break reporting
 boolean pause_mode = true; //This is set to true if user presses x
@@ -59,6 +60,8 @@ void setup() {
     Serial.println(scale.testCalibration(raw));
   }
   delay(5000);
+  
+  test_start_time = millis(); // Initialize test start time
 }
 
 void loop() {
@@ -82,8 +85,9 @@ void outputCSV(float current, float peak) {
 
 // Output data in JSON format for visualization apps
 void outputJSON(float current, float peak) {
+  float test_time_seconds = (millis() - test_start_time) / 1000.0;
   Serial.print("{\"timestamp\":");
-  Serial.print(millis());
+  Serial.print(test_time_seconds, 3);
   Serial.print(",\"current\":");
   Serial.print(current, 3);
   Serial.print(",\"peak\":");
@@ -110,7 +114,7 @@ void displayMenu() {
   Serial.println();
   Serial.println("--------");
   Serial.println("r) Resume measurement");
-  Serial.println("x) Clear peak reading and resume measurement");
+  Serial.println("x) Start new test (reset peak and timestamp)");
   Serial.print("j) Toggle output format (current: ");
   Serial.print(json_mode ? "JSON" : "CSV");
   Serial.println(")");
@@ -126,7 +130,8 @@ void handleMenuInput() {
       
       if (incoming == 'x') {
         max_reading = 0; // Clear max values
-        Serial.println("Peak reading cleared.");
+        test_start_time = millis(); // Reset test timestamp
+        Serial.println("Starting new test...");
         break;
       }
 
