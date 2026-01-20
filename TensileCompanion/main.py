@@ -8,6 +8,7 @@ from tkinter import ttk, filedialog, colorchooser, messagebox
 import sys
 from pathlib import Path
 from typing import List, Dict
+from datetime import datetime
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
@@ -97,6 +98,7 @@ class TensileCompanionApp:
     def _create_live_test_tab(self):
         """Create the live test tab layout"""
         # Configure grid for three-panel layout
+        self.live_test_tab.columnconfigure(0, weight=0, minsize=100)  # Fixed narrower left panel
         self.live_test_tab.columnconfigure(1, weight=1)
         self.live_test_tab.rowconfigure(0, weight=1)
         
@@ -258,7 +260,7 @@ class TensileCompanionApp:
         # COM Port selection
         ttk.Label(left_frame, text="COM Port:").pack(anchor=tk.W, pady=5)
         self.port_var = tk.StringVar()
-        self.port_combo = ttk.Combobox(left_frame, textvariable=self.port_var, width=20)
+        self.port_combo = ttk.Combobox(left_frame, textvariable=self.port_var, width=10)
         self.port_combo.pack(fill=tk.X, pady=5)
         
         # Refresh ports button
@@ -277,7 +279,7 @@ class TensileCompanionApp:
         
         # Error display section
         ttk.Label(left_frame, text="Connection Errors:", font=("", 9, "bold")).pack(anchor=tk.W, pady=(5, 2))
-        self.error_text = tk.Text(left_frame, height=4, wrap=tk.WORD, 
+        self.error_text = tk.Text(left_frame, height=4, width=15, wrap=tk.WORD, 
                                  bg="#FFEEEE", fg="red", font=("", 8))
         self.error_text.pack(fill=tk.BOTH, expand=True, pady=5)
         
@@ -301,7 +303,7 @@ class TensileCompanionApp:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
         # Raw data text widget
-        self.raw_data_text = tk.Text(serial_frame, height=10, wrap=tk.WORD,
+        self.raw_data_text = tk.Text(serial_frame, height=10, width=15, wrap=tk.WORD,
                                      bg="#F0F0F0", fg="#000000", font=("", 8),
                                      yscrollcommand=scrollbar.set)
         self.raw_data_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -354,6 +356,10 @@ class TensileCompanionApp:
         self.resume_btn = ttk.Button(control_frame, text="Resume", 
                                      command=self._resume_test, state=tk.DISABLED)
         self.resume_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.export_chart_btn = ttk.Button(control_frame, text="Export Chart", 
+                                           command=self._export_chart)
+        self.export_chart_btn.pack(side=tk.LEFT, padx=5)
         
         # Peak force display
         peak_frame = ttk.Frame(center_frame)
@@ -572,6 +578,11 @@ class TensileCompanionApp:
             test_name = metadata.get('test_name', 'Test')
             self.plotter.set_title(f"Real-Time Force Measurement - {test_name}")
             
+            # Update footer with project name from metadata
+            project_name = metadata.get('project', '')
+            if project_name:
+                self.plotter.set_project_name(project_name)
+            
             # Update button states
             self.pause_btn.config(state=tk.NORMAL)
             # Resume button always enabled
@@ -646,6 +657,30 @@ class TensileCompanionApp:
                 self.has_metadata = False
         else:
             messagebox.showinfo("No Data", "No test data to discard.", parent=self.root)
+    
+    def _export_chart(self):
+        """Export the current chart as an image file"""
+        # Ask user for save location
+        file_path = filedialog.asksaveasfilename(
+            parent=self.root,
+            title="Export Chart As Image",
+            defaultextension=".png",
+            filetypes=[
+                ("PNG Image", "*.png"),
+                ("JPEG Image", "*.jpg"),
+                ("PDF Document", "*.pdf"),
+                ("SVG Vector", "*.svg"),
+                ("All Files", "*.*")
+            ],
+            initialfile=f"chart_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        )
+        
+        if file_path:
+            try:
+                self.plotter.save_figure(file_path)
+                messagebox.showinfo("Success", f"Chart exported successfully to:\n{file_path}", parent=self.root)
+            except Exception as e:
+                messagebox.showerror("Export Error", f"Failed to export chart:\n{str(e)}", parent=self.root)
     
     def _pause_test(self):
         """Pause measurement"""

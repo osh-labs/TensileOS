@@ -1,5 +1,5 @@
 {
-  "plot_line_color": "#ff0000",
+  "plot_line_color": "#0080ff",
   "peak_line_color": "#FF5722",
   "grid_color": "#CCCCCC",
   "grid_enabled": true,
@@ -15,5 +15,5 @@
   "last_technician": "",
   "recent_technicians": [],
   "company_name": "",
-  "software_version": "1.5.0"
+  "software_version": "1.5.1"
 }
