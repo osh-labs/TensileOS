@@ -6,6 +6,7 @@ Calculates statistics across multiple tests
 import statistics
 from typing import List, Dict, Tuple
 from pathlib import Path
+from datetime import datetime
 
 
 class TestStatistics:
@@ -17,7 +18,8 @@ class TestStatistics:
         Args:
             test_metadata_list: List of metadata dictionaries from tests
         """
-        self.tests = test_metadata_list
+        # Sort tests by datetime (CSV timestamp)
+        self.tests = sorted(test_metadata_list, key=lambda x: self._parse_datetime(x.get('datetime', '')))
         self.peak_forces = []
         
         # Extract peak forces
@@ -29,6 +31,21 @@ class TestStatistics:
             except (ValueError, AttributeError):
                 # Skip tests with invalid peak force
                 pass
+    
+    def _parse_datetime(self, datetime_str: str) -> datetime:
+        """Parse datetime string to datetime object
+        
+        Args:
+            datetime_str: DateTime string in format 'YYYY-MM-DD HH:MM:SS'
+            
+        Returns:
+            datetime object, or minimum datetime if parsing fails
+        """
+        try:
+            return datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S')
+        except (ValueError, AttributeError):
+            # Return minimum datetime for invalid entries (will sort first)
+            return datetime.min
     
     def calculate_average_peak(self) -> float:
         """Calculate average peak force

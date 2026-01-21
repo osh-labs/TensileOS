@@ -44,10 +44,21 @@ class StatisticsWindow:
         self.window.geometry("1000x1200")
         self.window.transient(parent)
         
-        # Center on parent
+        # Center on parent, but ensure it stays within screen bounds
         self.window.update_idletasks()
+        
+        # Get screen dimensions
+        screen_width = self.window.winfo_screenwidth()
+        screen_height = self.window.winfo_screenheight()
+        
+        # Calculate centered position
         x = parent.winfo_x() + (parent.winfo_width() // 2) - (self.window.winfo_width() // 2)
         y = parent.winfo_y() + (parent.winfo_height() // 2) - (self.window.winfo_height() // 2)
+        
+        # Ensure window stays within screen bounds (with minimum 30px from edges)
+        x = max(30, min(x, screen_width - self.window.winfo_width() - 30))
+        y = max(30, min(y, screen_height - self.window.winfo_height() - 30))
+        
         self.window.geometry(f"+{x}+{y}")
         
         self._create_widgets()
@@ -69,7 +80,7 @@ class StatisticsWindow:
         
         summary = self.stats.get_summary()
         mean, lower_3sigma, upper_3sigma = self.stats.calculate_3sigma()
-        three_sigma_avg = mean - (3 * summary['std_dev'])
+        three_sigma_mbs = mean - (3 * summary['std_dev'])
         
         # Create summary grid
         stats_grid = ttk.Frame(summary_frame)
@@ -126,9 +137,9 @@ class StatisticsWindow:
         
         row += 1
         # 3-Sigma Average Peak Force (mean - 3*std_dev)
-        ttk.Label(stats_grid, text="3-Sigma Average Peak Force:", font=("", 10, "bold")).grid(
+        ttk.Label(stats_grid, text="3-Sigma MBS:", font=("", 10, "bold")).grid(
             row=row, column=0, sticky=tk.W, padx=5, pady=2)
-        ttk.Label(stats_grid, text=f"{three_sigma_avg:.3f} kN", 
+        ttk.Label(stats_grid, text=f"{three_sigma_mbs:.3f} kN", 
                  font=("", 10), foreground="#FF5722").grid(
             row=row, column=1, sticky=tk.W, padx=5, pady=2)
         
@@ -224,11 +235,19 @@ class StatisticsWindow:
         tree.heading('deviation', text='Deviation from Mean')
         
         tree.column('#0', width=40)
-        tree.column('test_name', width=180)
-        tree.column('project', width=120)
+        tree.column('test_name', width=100)
+        tree.column('project', width=250)
         tree.column('technician', width=120)
         tree.column('peak', width=90)
         tree.column('deviation', width=110)
+        
+        # Center align all columns
+        tree.column('#0', anchor='center')
+        tree.column('test_name', anchor='center')
+        tree.column('project', anchor='center')
+        tree.column('technician', anchor='center')
+        tree.column('peak', anchor='center')
+        tree.column('deviation', anchor='center')
         
         # Populate with data
         deviations = self.stats.get_deviations()
@@ -260,10 +279,10 @@ class StatisticsWindow:
             return
         
         try:
-            # Create PDF
+            # Create PDF with reduced margins
             doc = SimpleDocTemplate(filename, pagesize=letter,
                                   rightMargin=72, leftMargin=72,
-                                  topMargin=72, bottomMargin=72)
+                                  topMargin=36, bottomMargin=36)
             
             # Container for elements
             elements = []
@@ -275,7 +294,7 @@ class StatisticsWindow:
                 parent=styles['Heading1'],
                 fontSize=18,
                 textColor=colors.HexColor('#2196F3'),
-                spaceAfter=10,
+                spaceAfter=8,
                 alignment=TA_CENTER
             )
             
@@ -284,8 +303,8 @@ class StatisticsWindow:
                 parent=styles['Heading2'],
                 fontSize=12,
                 textColor=colors.HexColor('#424242'),
-                spaceAfter=6,
-                spaceBefore=10
+                spaceAfter=4,
+                spaceBefore=8
             )
             
             # Title
@@ -312,14 +331,14 @@ class StatisticsWindow:
                                                    alignment=TA_CENTER, fontSize=9, textColor=colors.grey)
                     elements.append(Paragraph(f"TensileOS Companion v{version}", version_style))
             
-            elements.append(Spacer(1, 0.15*inch))
+            elements.append(Spacer(1, 0.1*inch))
             
             # Summary Statistics
             elements.append(Paragraph("Summary Statistics", heading_style))
             
             summary = self.stats.get_summary()
             mean, lower_3sigma, upper_3sigma = self.stats.calculate_3sigma()
-            three_sigma_avg = mean - (3 * summary['std_dev'])
+            three_sigma_mbs = mean - (3 * summary['std_dev'])
             
             summary_data = [
                 ['Number of Tests:', f"{summary['count']}"],
@@ -329,7 +348,7 @@ class StatisticsWindow:
                 ['', ''],  # Divider row
                 ['Standard Deviation:', f"{summary['std_dev']:.3f} kN"],
                 ['3-Sigma Range:', f"{lower_3sigma:.3f} to {upper_3sigma:.3f} kN"],
-                ['3-Sigma Average Peak Force:', f"{three_sigma_avg:.3f} kN"],
+                ['3-Sigma MBS:', f"{three_sigma_mbs:.3f} kN"],
             ]
             
             summary_table = Table(summary_data, colWidths=[2.5*inch, 2.5*inch])
@@ -338,14 +357,14 @@ class StatisticsWindow:
                 ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
                 ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
                 ('FONTSIZE', (0, 0), (-1, -1), 10),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 2),  # Reduced padding for tighter spacing
+                ('TOPPADDING', (0, 0), (-1, -1), 2),
                 ('LINEBELOW', (0, 4), (-1, 4), 1, colors.grey),  # Divider line
                 ('TEXTCOLOR', (0, 1), (-1, 1), colors.HexColor('#2196F3')),  # Average in blue
                 ('TEXTCOLOR', (0, 6), (-1, 7), colors.HexColor('#FF5722')),  # 3-sigma in red
             ]))
             elements.append(summary_table)
-            elements.append(Spacer(1, 0.15*inch))
+            elements.append(Spacer(1, 0.1*inch))
             
             # Add chart image - create new chart specifically for PDF export
             elements.append(Paragraph("Peak Force Distribution", heading_style))
@@ -391,14 +410,25 @@ class StatisticsWindow:
             # Add to PDF with exact dimensions
             img = Image(img_buffer, width=6*inch, height=2.6*inch)
             elements.append(img)
-            elements.append(Spacer(1, 0.15*inch))
+            elements.append(Spacer(1, 0.1*inch))
             
             # Individual Test Results
             elements.append(Paragraph("Individual Test Results", heading_style))
             
+            # Create style for wrapping text in table cells
+            cell_style = ParagraphStyle(
+                'CellStyle',
+                parent=styles['Normal'],
+                fontSize=9,
+                leading=10,  # Reduced line spacing (was 11)
+                alignment=TA_CENTER  # Center alignment
+            )
+            
             test_data = [['#', 'Test Name', 'Project', 'Technician', 'Peak (kN)', 'Deviation']]
             
+            # Get deviations (already sorted by timestamp in TestStatistics class)
             deviations = self.stats.get_deviations()
+            
             for i, (test_name, peak, deviation) in enumerate(deviations, 1):
                 technician = ''
                 project = ''
@@ -408,29 +438,33 @@ class StatisticsWindow:
                         project = test.get('project', '')
                         break
                 
+                # Use Paragraph objects for text that needs wrapping
                 test_data.append([
                     str(i),
-                    test_name[:25],  # Truncate if too long
-                    project[:20],
-                    technician,
+                    Paragraph(test_name, cell_style),  # Allow wrapping for test name
+                    Paragraph(project, cell_style),     # Allow wrapping for project name
+                    Paragraph(technician, cell_style),  # Allow wrapping for technician
                     f"{peak:.3f}",
                     f"{deviation:+.3f}"
                 ])
             
-            test_table = Table(test_data, colWidths=[0.3*inch, 1.5*inch, 1*inch, 1*inch, 0.8*inch, 0.9*inch])
+            # Adjusted column widths to give more space to project column
+            test_table = Table(test_data, colWidths=[0.3*inch, 0.75*inch, 2.4*inch, 0.9*inch, 0.7*inch, 0.9*inch], 
+                             repeatRows=1)  # Repeat header on each page
             test_table.setStyle(TableStyle([
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('ALIGN', (0, 0), (0, -1), 'CENTER'),  # Center # column
-                ('ALIGN', (4, 0), (5, -1), 'RIGHT'),  # Right-align numbers
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),  # Center all text
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Top-align all cells for wrapped text
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
                 ('FONTSIZE', (0, 0), (-1, -1), 9),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),  # Reduced padding for more compact spacing
                 ('TOPPADDING', (0, 0), (-1, -1), 4),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E3F2FD')),
                 ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F5F5F5')]),
             ]))
+            
+            # Split table if needed to keep minimum 5 rows per page
             elements.append(test_table)
             
             # Build PDF with custom footer

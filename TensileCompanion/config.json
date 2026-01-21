@@ -11,9 +11,11 @@
   "auto_scale_y": true,
   "export_directory": "./exports",
   "tests_directory": "./Tests",
-  "last_com_port": "COM6",
-  "last_technician": "",
-  "recent_technicians": [],
-  "company_name": "",
-  "software_version": "1.5.1"
+  "last_com_port": "COM3",
+  "last_technician": "Chris Lee",
+  "recent_technicians": [
+    "Chris Lee"
+  ],
+  "company_name": "Southeast Expedition Medical",
+  "software_version": "1.5.2"
 }
