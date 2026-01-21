@@ -114,7 +114,8 @@ class TensileCompanionApp:
             self.test_browser_tab,
             self.test_manager,
             on_calculate_stats=self._on_calculate_statistics,
-            on_edit_metadata=self._on_edit_metadata
+            on_edit_metadata=self._on_edit_metadata,
+            on_load_test=self._on_load_test
         )
         self.test_browser.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
     
@@ -922,6 +923,63 @@ class TensileCompanionApp:
         except Exception as e:
             messagebox.showerror("Edit Error", 
                                f"Failed to update metadata:\n{str(e)}",
+                               parent=self.root)
+    
+    def _on_load_test(self, metadata: Dict[str, str]):
+        """Callback for loading a test into the main window
+        
+        Args:
+            metadata: Test metadata dictionary
+        """
+        try:
+            if not metadata:
+                messagebox.showerror("Error", "Invalid test metadata.",
+                                   parent=self.root)
+                return
+            
+            # Get filepath from metadata
+            filepath = metadata.get('filepath')
+            if not filepath:
+                messagebox.showerror("Error", "Test file path not found.",
+                                   parent=self.root)
+                return
+            
+            # Read test data from CSV
+            test_data = self.test_manager.read_test_data(Path(filepath))
+            if not test_data:
+                messagebox.showerror("Error", "Failed to read test data from file.",
+                                   parent=self.root)
+                return
+            
+            timestamps, current_readings, peak_readings = test_data
+            
+            # Load data into plotter
+            self.plotter.load_historical_data(timestamps, current_readings, peak_readings)
+            
+            # Update chart title with test name
+            test_name = metadata.get('test_name', 'Unknown')
+            self.plotter.set_title(f"Saved Tensile Test - {test_name}")
+            
+            # Update footer with project name if available
+            project_name = metadata.get('project', '')
+            if project_name:
+                self.plotter.set_project_name(project_name)
+            
+            # Store metadata in data manager for display
+            self.data_manager.set_test_metadata(metadata)
+            
+            # Switch to Live Test tab
+            self.notebook.select(self.live_test_tab)
+            
+            # Show success message
+            test_name = metadata.get('test_name', 'Unknown')
+            messagebox.showinfo("Test Loaded", 
+                              f"Successfully loaded test: {test_name}",
+                              parent=self.root)
+        
+        except Exception as e:
+            messagebox.showerror("Load Error", 
+                               f"Failed to load test:\n{str(e)}",
                                parent=self.root)
 
 

@@ -113,6 +113,36 @@ class TensilePlotter:
         self.canvas.draw()
         self.canvas.flush_events()
     
+    def load_historical_data(self, timestamps: List[float], current_readings: List[float], 
+                            peak_readings: List[float]):
+        """Load historical test data for viewing
+        
+        Args:
+            timestamps: List of timestamps in seconds
+            current_readings: List of current force readings in kN
+            peak_readings: List of peak force readings in kN
+        """
+        # Store the data
+        self.timestamps = timestamps
+        self.current_readings = current_readings
+        self.peak_value = peak_readings[-1] if peak_readings else 0.0
+        
+        # Update line data
+        if len(self.timestamps) > 0:
+            self.current_line.set_data(self.timestamps, self.current_readings)
+            self.peak_line.set_ydata([self.peak_value, self.peak_value])
+            
+            # Auto-scale axes based on data
+            max_time = max(self.timestamps) if self.timestamps else 1
+            self.ax.set_xlim(0, max_time * 1.05)  # 5% padding
+            
+            max_reading = max(max(self.current_readings), self.peak_value) if self.current_readings else 1
+            self.ax.set_ylim(0, max_reading * 1.2)  # 20% padding
+        
+        # Redraw canvas
+        self.canvas.draw()
+        self.canvas.flush_events()
+    
     def clear_plot(self):
         """Clear all data from plot"""
         self.timestamps.clear()

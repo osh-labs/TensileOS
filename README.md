@@ -6,6 +6,21 @@ Tensile strength testing system using SparkFun OpenScale (HX711-based load cell 
 
 TensileOS provides a simple serial interface for real-time force measurements in tensile/break testing equipment. The system continuously monitors load cell readings, tracks peak forces, and outputs data in CSV format for logging and analysis.
 
+The project includes **TensileCompanion**, a comprehensive Python GUI application for real-time data visualization, test management, and statistical analysis.
+
+## Components
+
+### TensileOS (Firmware)
+Arduino-based firmware for force measurement and data acquisition.
+
+### TensileCompanion (Desktop Application)
+Python GUI application providing:
+- Real-time force visualization
+- Test data management and organization
+- Statistical analysis across multiple tests
+- Professional PDF report generation
+- Historical test browsing and loading
+
 ## Hardware Requirements
 
 - Arduino-compatible microcontroller
@@ -150,21 +165,272 @@ while True:
         # Add your visualization code here
 ```
 
+```
+
+## TensileCompanion GUI Application
+
+### Overview
+
+TensileCompanion is a professional desktop application for controlling TensileOS hardware, visualizing real-time data, and managing test results. Built with Python and Tkinter, it provides a complete solution for tensile testing operations.
+
+### Features
+
+#### Live Testing
+- **Real-time Visualization**: Live force vs. time plotting during tests
+- **Serial Communication**: Automatic COM port detection and connection
+- **Test Metadata**: Capture test name, technician, project, and notes
+- **Date-Based Organization**: Automatic file organization by test date
+- **CSV Export**: Save test data with embedded metadata headers
+
+#### Test Browser
+- **Hierarchical View**: Tests organized by date folders
+- **Flexible Selection**: 
+  - Select All checkbox in header
+  - Click date folders to select/deselect all tests in that date
+  - Individual test checkboxes
+  - Smart state tracking (folder checkboxes update automatically)
+- **Test Loading**: Load historical tests into the main window for review
+- **Metadata Editing**: Edit test metadata (name, technician, project, notes) after saving
+- **Quick Preview**: View test details in preview pane
+
+#### Statistical Analysis
+- **Multi-Test Analysis**: Calculate statistics across selected tests
+- **Comprehensive Metrics**:
+  - Number of tests
+  - Average, median, min/max peak forces
+  - Standard deviation
+  - 3-Sigma range (mean ± 3σ)
+  - 3-Sigma MBS (Minimum Breaking Strength)
+- **Visualization**: Bar chart with mean and 3-sigma bounds
+- **Chronological Ordering**: Results sorted by test timestamp
+- **Individual Deviations**: View each test's deviation from mean
+
+#### PDF Report Generation
+- **Professional Layout**: Clean, compact design with optimized spacing
+- **Text Wrapping**: Automatically wraps long project names
+- **Center-Aligned Tables**: Clean presentation
+- **Optimized Pagination**: Minimum 5 test results per page
+- **Complete Statistics**: All metrics and visualizations included
+- **Company Branding**: Includes company name and software version
+
+#### Settings
+- **Plot Customization**: Configure colors, grid, and axis ranges
+- **Directory Management**: Set export and test storage locations
+- **Company Information**: Set company name for reports
+- **Technician History**: Recently used technician names
+
+### Installation
+
+#### Requirements
+- Python 3.8 or higher
+- Windows, macOS, or Linux
+
+#### Dependencies
+Install required packages:
+```bash
+cd TensileCompanion
+python -m pip install -r requirements.txt
+```
+
+Required packages:
+- `pyserial` - Serial communication
+- `matplotlib` - Data visualization
+- `reportlab` - PDF generation
+
+#### Running TensileCompanion
+```bash
+cd TensileCompanion
+python main.py
+```
+
+### Usage Guide
+
+#### Starting a Test
+
+1. **Connect Hardware**
+   - Connect TensileOS device via USB
+   - Launch TensileCompanion
+   
+2. **Configure Serial Connection**
+   - Select COM port from dropdown
+   - Click "Connect"
+   - Status will show "Connected"
+
+3. **Enter Test Metadata**
+   - Click "Enter Metadata" button
+   - Fill in:
+     - Test Name (required)
+     - Date/Time (auto-populated)
+     - Technician name
+     - Project name
+     - Notes (optional)
+   - Click "Start Test"
+
+4. **Run Test**
+   - Watch live force plot
+   - Click "Stop Test" when complete
+   - Review peak force
+   - Click "Save Test" to store data
+
+5. **Test Saved**
+   - Automatically organized in date folder
+   - CSV file includes metadata header
+   - Ready for analysis
+
+#### Loading Historical Tests
+
+1. Go to **Test Browser** tab
+2. Click on any test row (not the checkbox)
+3. Click **"Load Test"** button
+4. Test appears in Live Test tab with:
+   - Complete force vs. time graph
+   - Peak force line
+   - All metadata displayed
+5. Review historical test data
+
+#### Selecting Multiple Tests
+
+**Select All Tests:**
+- Click "☐ Select All" in the header
+- All tests across all dates selected
+- Click again to deselect all
+
+**Select Date Folder:**
+- Click checkbox next to date (e.g., "☐ 2026-01-20")
+- All tests in that date selected
+- Date folder shows "☑" when all tests selected
+
+**Select Individual Tests:**
+- Click checkbox next to specific tests
+- Parent folder and "Select All" update automatically
+- Selection count shown in toolbar
+
+#### Statistical Analysis
+
+1. Go to **Test Browser** tab
+2. Select tests using checkboxes:
+   - Click individual test checkboxes, or
+   - Click date folder checkbox to select all in folder, or
+   - Click "Select All" header to select everything
+3. Click **"Calculate Statistics"** button
+4. Review statistics window:
+   - Summary metrics
+   - Peak force distribution chart
+   - Individual test results table (sorted by timestamp)
+5. Click **"Export Report"** to generate PDF
+
+#### Editing Metadata
+
+1. Go to **Test Browser** tab
+2. Select a test (click on the row, not checkbox)
+3. Click **"Edit Metadata"** button
+4. Modify fields as needed
+5. Click "Save" to update
+
+### File Organization
+
+Tests are automatically organized in date-based folders:
+
+```
+Tests/
+├── 2026-01-20/
+│   ├── Test_1_210645.csv
+│   ├── Test_2_211047.csv
+│   └── Test_3_211234.csv
+├── 2026-01-21/
+│   └── Sample_Test_140523.csv
+└── ...
+```
+
+Each CSV file includes:
+- Metadata header (test name, date/time, technician, project, notes, peak force)
+- Tabular data (timestamp, current_kN, peak_kN)
+
+### PDF Report Features
+
+Statistical reports include:
+- Company name and software version
+- Generation timestamp
+- Summary statistics table (single-spaced, compact)
+- Peak force distribution chart
+- Individual test results table with:
+  - Test names, projects, technicians
+  - Peak forces and deviations from mean
+  - Automatic text wrapping for long names
+  - Center-aligned columns
+  - Minimum 5 rows per page
+
+### Configuration
+
+Settings are stored in `config.json`:
+- Plot colors and appearance
+- Directory paths
+- Last used COM port
+- Recent technician names
+- Company information
+- Software version
+
 ## Project Structure
 
 ```
 TensileOS/
 ├── src/
-│   └── main.cpp          # Main application code
-├── include/              # Header files
-├── lib/                  # Project-specific libraries
-├── test/                 # Unit tests
-├── Examples/             # Example sketches
-│   ├── calibrate.cpp     # Calibration utilities
-│   └── main.cpp          # Alternative main implementations
-├── platformio.ini        # PlatformIO configuration
-└── README.md            # This file
+│   └── main.cpp              # Arduino firmware
+├── include/                  # Header files
+├── lib/                      # Project libraries
+├── Examples/                 # Example sketches
+│   ├── calibrate.cpp
+│   └── main.cpp
+├── TensileCompanion/         # Python GUI application
+│   ├── main.py              # Application entry point
+│   ├── config.json          # User settings
+│   ├── requirements.txt     # Python dependencies
+│   ├── analysis/            # Statistical analysis
+│   │   └── statistics.py
+│   ├── config/              # Settings management
+│   │   └── settings.py
+│   ├── data/                # Data management
+│   │   ├── data_manager.py
+│   │   └── test_manager.py
+│   ├── ui/                  # User interface components
+│   │   ├── metadata_dialog.py
+│   │   ├── metadata_edit_dialog.py
+│   │   ├── statistics_window.py
+│   │   └── test_browser.py
+│   ├── utils/               # Utilities
+│   │   └── serial_handler.py
+│   ├── visualization/       # Plotting
+│   │   └── plotter.py
+│   ├── exports/            # CSV exports (legacy)
+│   └── Tests/              # Organized test files
+│       ├── 2026-01-20/
+│       ├── 2026-01-21/
+│       └── ...
+├── platformio.ini           # PlatformIO configuration
+└── README.md               # This file
 ```
+
+## TensileCompanion Architecture
+
+### Components
+
+- **Serial Handler**: Manages USB communication with TensileOS hardware
+- **Data Manager**: Buffers and manages live test data
+- **Test Manager**: Organizes tests in date-based folders, handles metadata
+- **Plotter**: Real-time and historical data visualization
+- **Statistics Module**: Multi-test statistical analysis
+- **UI Components**: Dialogs for metadata entry/editing
+- **Test Browser**: Hierarchical test selection and management
+
+### Data Flow
+
+1. Arduino sends JSON data via serial
+2. Serial Handler parses and forwards to Data Manager
+3. Data Manager buffers readings and updates Plotter
+4. User saves test → Test Manager creates CSV with metadata
+5. Test Browser reads and displays saved tests
+6. Statistics Module analyzes selected tests
+7. PDF reports generated from statistical analysis
 
 ## Code Architecture
 
@@ -181,12 +447,38 @@ This modular structure makes the code easy to maintain, test, and extend.
 
 ## Future Enhancements
 
+### Firmware
 - Interactive calibration mode (command `c`)
 - Additional export formats (XML, binary)
 - Tare/zero adjustment
 - Configurable measurement rates
 - EEPROM storage for calibration data
-- Real-time graphing capability
+
+### TensileCompanion
+- Export to Excel format
+- Custom report templates
+- Multi-language support
+- Cloud backup integration
+- Advanced filtering and search
+- Batch test operations
+
+## Version History
+
+### v1.5.2 (January 2026)
+- Enhanced statistics PDF export with text wrapping and compact layout
+- Improved test browser with hierarchical selection (Select All, date folders, individual tests)
+- Added ability to load historical tests into main window
+- Optimized PDF pagination (minimum 5 rows per page)
+- Fixed statistics window positioning bug
+- Chronological sorting by test timestamp
+- Renamed "3-Sigma Average Peak Force" to "3-Sigma MBS"
+
+### v1.5.1
+- Initial TensileCompanion release
+- Real-time visualization
+- Test metadata management
+- Statistical analysis
+- Basic PDF reports
 
 ## License
 

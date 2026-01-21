@@ -264,3 +264,43 @@ class TestManager:
         safe_name = safe_name.replace(' ', '_')
         
         return safe_name if safe_name else "test"
+    
+    def read_test_data(self, filepath: Path) -> Optional[Tuple[List[float], List[float], List[float]]]:
+        """Read test data from CSV file
+        
+        Args:
+            filepath: Path to test file
+            
+        Returns:
+            Tuple of (timestamps, current_readings, peak_readings) or None if error
+        """
+        if not filepath.exists():
+            return None
+        
+        timestamps = []
+        current_readings = []
+        peak_readings = []
+        
+        try:
+            with open(filepath, 'r') as f:
+                # Skip metadata lines (start with #)
+                for line in f:
+                    if not line.startswith('#'):
+                        break
+                
+                # Now read CSV data
+                reader = csv.reader(f)
+                for row in reader:
+                    if len(row) >= 3:
+                        try:
+                            timestamps.append(float(row[0]))
+                            current_readings.append(float(row[1]))
+                            peak_readings.append(float(row[2]))
+                        except ValueError:
+                            continue  # Skip invalid rows
+            
+            return (timestamps, current_readings, peak_readings)
+        
+        except Exception as e:
+            print(f"Error reading test data from {filepath}: {e}")
+            return None
