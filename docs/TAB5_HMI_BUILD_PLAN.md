@@ -171,6 +171,7 @@ TensileHMI/                    # ESP-IDF project (new)
 ### 4.4 Time and Time Zone
 
 - The RTC and all internal timestamps are kept in **UTC**. Local time is applied only for display, the `# Date:` header, folder names (`YYYY-MM-DD`) and file names (`HHMMSS`), so desktop-compatible files stay in local time as they are today.
+- The existing `# Date:` header has no UTC offset, so the repeated hour at the end of DST is ambiguous. The HMI also writes `# Date UTC: 2026-11-01T05:30:12Z`, which the desktop reader ignores as an unknown key, so every test has an unambiguous time.
 - ESP-IDF converts time with POSIX TZ strings (`setenv("TZ", …)` + `tzset()`); there is no time zone database on the device.
 - **Settings → Date & Time** pane:
 
