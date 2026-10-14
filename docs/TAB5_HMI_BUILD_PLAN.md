@@ -7,7 +7,7 @@
 | Scope | Standalone touchscreen HMI (M5Stack Tab5 Kit) that reaches feature parity with TensileCompanion v1.6.0, adds on-device PDF reporting, and auto-uploads to Nextcloud |
 | Baseline reviewed | `src/main.cpp` (firmware), `TensileCompanion/` v1.6.0, sample data in `TensileCompanion/Tests/2026-01-20/` |
 | Date | 2026-10-14 |
-| Status | Approved scope; ready for Phase 0 |
+| Status | Phase 0 firmware built and host-tested; awaiting bench run |
 
 ---
 
@@ -203,14 +203,17 @@ USB_ATTACH (VID 0403 / PID 6015)
   → OPEN  ftdi_vcp_open(), 115200 8N1
   → RESET set DTR (via set_control_line_state) to force a known boot state
   → BOOT  wait for "Measurement Paused" (menu text); timeout 12 s → retry RESET once → FAULT
-  → MODE  send 'j'; expect "Output format changed to: JSON"
-          if reply says CSV → send 'j' again (device is now running) → expect JSON
+  → MODE  read the menu line "j) Toggle output format (current: X)"; if X = JSON go to READY
+          else send 'j' → expect "Output format changed to: JSON" (device now running) → 'x' to pause
+          if the reply says CSV: send 'x' first (v1.6 ignores every key except 'x' while running),
+          then 'j' again from the menu
   → PAUSE send 'x'; expect "Measurement Paused"
   → READY (paused, JSON)
 NEW_TEST: send 'x' while running (→ paused), then 'x' → expect "Starting new test..." → accept samples
 USB_DETACH at any point → LINK_GONE; an active test is kept as "interrupted" and the user is offered save or discard
 ```
 
+- Implementation note (Phase 0): v1.6 discards every character except `x` while measuring, so `j` is only sent from the menu.
 - If DTR does not reset the 328P (Phase 0 checks this), the BOOT step falls back to sending `x` and waiting for the menu text. That path works whether the device was running or paused.
 - Firmware detection for PR-F1 (`?` command) is added in a follow-up HMI PR paired with that firmware PR, not in v1 (decision 3).
 
@@ -251,6 +254,7 @@ USB_DETACH at any point → LINK_GONE; an active test is kept as "interrupted" a
 - The upload task runs when Wi-Fi is up and the clock has synced, with exponential backoff from 5 s up to 15 min plus jitter.
 - **`401`/`403` stops the queue immediately, with no retries**, and raises a persistent "Upload credentials rejected" banner. Nextcloud's brute-force protection throttles by source IP. The shop's public IP is shared with every user and device on the site, so a device retrying bad credentials could slow Nextcloud logins for everyone there.
 - `429`/`503` honor `Retry-After`. Other `5xx` responses and timeouts use backoff.
+- A PUT that times out after the body was sent may already have succeeded. Before retrying, the queue runs `PROPFIND` on the target and treats a matching size as success, so a retry never creates a `_TAB5` duplicate.
 - Status bar: Wi-Fi RSSI, number of pending uploads, time of last success. Diagnostics shows the queue contents and the last HTTP status for each item.
 
 ### 6.4 Fallback: Nextcloud File Drop
@@ -368,6 +372,7 @@ Effort estimates assume one developer experienced with ESP-IDF and LVGL, with th
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
 | USB-A brownout | Low with the battery installed | High | Battery always installed (decision 2); USB-C power at the stand; brownout reset reason logged and shown in Diagnostics |
+| ESP32-C6 runs an esp_hosted slave version incompatible with the 2.12 host (M5Stack's demo ships V1.4.1) | Med | High | Phase 0 logs the slave version. Fixes: flash the matching 2.12 slave through the C6 download pads, or fall back to the demo's esp_hosted 1.4.0 + esp_wifi_remote 0.8.5 pair |
 | Power-path init differs between Tab5 board revisions | Med | Med | Port from the current M5Unified source; Phase 0 confirms charging and USB-A 5V on the actual unit |
 | The FT231 on the OpenScale enumerates with an unexpected PID | Low | High | Phase 0 check; `ftdi_vcp_open()` accepts an explicit PID |
 | DTR does not reset the 328P | Med | Low | Fallback path in Section 5.2 |
