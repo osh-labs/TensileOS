@@ -3,7 +3,7 @@
 | Item | Value |
 |---|---|
 | Document | TAB5_HMI_BUILD_PLAN.md |
-| Revision | 2 (owner decisions incorporated, Section 0) |
+| Revision | 3 (owner decisions incorporated, Section 0) |
 | Scope | Standalone touchscreen HMI (M5Stack Tab5 Kit) that reaches feature parity with TensileCompanion v1.6.0, adds on-device PDF reporting, and auto-uploads to Nextcloud |
 | Baseline reviewed | `src/main.cpp` (firmware), `TensileCompanion/` v1.6.0, sample data in `TensileCompanion/Tests/2026-01-20/` |
 | Date | 2026-10-14 |
@@ -20,6 +20,8 @@
 | 3 | Firmware changes | Approved, but **as separate PRs after the HMI is complete and tested** | HMI v1 must work with the **unchanged v1.6 firmware**. Firmware work moves to Phase 6, after HMI acceptance (Section 9.2). |
 | 4 | Wi-Fi | WPA2/WPA3-Personal (standard password) | The enterprise-Wi-Fi risk is closed. Setup is on-screen scan and password entry. |
 | 5 | PDF | On-device PDF required | A dedicated PDF component is in v1 scope (Section 7). |
+| 6 | Nextcloud instance | `https://nx80213.your-storageshare.de` | Built into the default upload settings (Section 6.2). Checked 2026-10-14: `status.php` reports 33.0.9, maintenance off; unauthenticated WebDAV `PROPFIND` returns `401` as expected. |
+| 7 | Time zone | US Eastern by default, configurable in Settings | Time zone section in the Settings pane (Section 4.4) |
 
 ---
 
@@ -129,8 +131,8 @@ Assumption: battery runtime with the display at about 50% brightness, Wi-Fi acti
 | GUI | LVGL 9 through `esp_lvgl_port` | `lv_chart`, `lv_table`, `lv_keyboard` |
 | USB serial | `espressif/usb_host_ftdi_vcp` (2.1.x) on `usb_host_cdc_acm` (^2.3) | `FTDI_PID_AUTO` probes 0x6001 and 0x6015 |
 | Wi-Fi | `esp_wifi_remote` with `esp_hosted` (P4 host, C6 slave) | Standard `esp_wifi` API; WPA2/WPA3-Personal |
-| HTTP/TLS | `esp_http_client` with `esp_crt_bundle` | Hetzner Storage Share uses a publicly trusted certificate, so no custom CA is needed |
-| Time | SNTP and RX8130CE | Sets the `Date` header; time zone is configurable (default America/New_York) |
+| HTTP/TLS | `esp_http_client` with `esp_crt_bundle` | The Storage Share certificate is expected to chain to a public CA in the bundle. Phase 0 confirms the chain from the device; if it does not, the CA is added to the bundle. |
+| Time | SNTP and RX8130CE | RTC stores UTC; local time from a POSIX TZ string (Section 4.4) |
 | Storage | FATFS on SD (data), NVS (settings), encrypted NVS for the app password | |
 | PDF | `tensile_report` (project component, Section 7) | No third-party dependency |
 | OTA | `esp_https_ota` | HMI application only |
@@ -165,6 +167,22 @@ TensileHMI/                    # ESP-IDF project (new)
 ├── tools/                     # golden-value generator (Python, uses TensileCompanion modules)
 └── sdkconfig.defaults
 ```
+
+### 4.4 Time and Time Zone
+
+- The RTC and all internal timestamps are kept in **UTC**. Local time is applied only for display, the `# Date:` header, folder names (`YYYY-MM-DD`) and file names (`HHMMSS`), so desktop-compatible files stay in local time as they are today.
+- ESP-IDF converts time with POSIX TZ strings (`setenv("TZ", …)` + `tzset()`); there is no time zone database on the device.
+- **Settings → Date & Time** pane:
+
+| Control | Behavior |
+|---|---|
+| Time zone | Dropdown, default **US Eastern** (`EST5EDT,M3.2.0,M11.1.0`). Also offers US Central (`CST6CDT,M3.2.0,M11.1.0`), Mountain (`MST7MDT,M3.2.0,M11.1.0`), Arizona (`MST7`), Pacific (`PST8PDT,M3.2.0,M11.1.0`), Alaska (`AKST9AKDT,M3.2.0,M11.1.0`), Hawaii (`HST10`) and UTC (`UTC0`) |
+| Custom | Free-text POSIX TZ string for any other zone, validated before saving |
+| Network time | On by default (SNTP: `pool.ntp.org`, server editable). Off allows manual date and time entry |
+| Status | Current local time, UTC offset, DST active yes/no, last SNTP sync |
+
+- The selection is stored in NVS and applied immediately. It changes how future tests are named and stamped only; existing files keep the time they were written with.
+- If US DST rules change, the preset strings are updated by an OTA release, or the Custom field covers it immediately.
 
 ---
 
@@ -217,7 +235,7 @@ USB_DETACH at any point → LINK_GONE; an active test is kept as "interrupted" a
 
 ### 6.2 Protocol
 
-- Base URL: `https://<instance>.your-storageshare.de/remote.php/dav/files/tensile-hmi/TensileOS/` (or a custom domain, if one is configured)
+- Base URL: `https://nx80213.your-storageshare.de/remote.php/dav/files/tensile-hmi/TensileOS/`. Host, user and root folder are all editable in Settings → Upload; these values are the defaults.
 - Authentication: HTTP Basic with `tensile-hmi:<app password>` over TLS 1.2+
 - Per test file:
   1. `MKCOL Tests/YYYY-MM-DD/`. A `201` means created, and `405` means it already exists; both are success.
@@ -236,7 +254,7 @@ USB_DETACH at any point → LINK_GONE; an active test is kept as "interrupted" a
 
 ### 6.4 Fallback: Nextcloud File Drop
 
-If a service account is not wanted, an upload-only public share works on Nextcloud 33. The endpoint is `https://<instance>/public.php/dav/files/<share-token>/…` with the header `X-Requested-With: XMLHttpRequest`, and `anonymous:<share-password>` as Basic auth if the share has a password. Limitations: a File Drop share hides existing files from the uploader, so the device cannot check for or replace a file, and metadata edits cannot be pushed. This is not recommended unless the service account is ruled out.
+If a service account is not wanted, an upload-only public share works on Nextcloud 33. The endpoint is `https://nx80213.your-storageshare.de/public.php/dav/files/<share-token>/…` with the header `X-Requested-With: XMLHttpRequest`, and `anonymous:<share-password>` as Basic auth if the share has a password. Limitations: a File Drop share hides existing files from the uploader, so the device cannot check for or replace a file, and metadata edits cannot be pushed. This is not recommended unless the service account is ruled out.
 
 ---
 
@@ -291,7 +309,8 @@ If a service account is not wanted, an upload-only public share works on Nextclo
 | Date-folder CSV storage | Same format and paths on SD (Section 2.4) | 1 |
 | Raw serial monitor, debug to console | Diagnostics screen (last 1,000 lines); ESP log over USB-C | 1 |
 | — (new) | Battery status and low-battery interlocks | 1 |
-| — (new) | Wi-Fi setup (scan and keyboard), SNTP and RTC, time zone | 2 |
+| — (new) | Wi-Fi setup (scan and keyboard), SNTP and RTC | 2 |
+| — (new) | Time zone selection in Settings, default US Eastern (Section 4.4) | 2 |
 | — (new) | WebDAV upload, queue, connection test | 2 |
 | Test browser (date tree, select all / folder / individual) | Date list, then test list, with checkboxes and a selection count | 3 |
 | Preview pane | Detail panel with metadata and a mini-plot | 3 |
@@ -303,6 +322,7 @@ If a service account is not wanted, an upload-only public share works on Nextclo
 | Stats CSV export | Section 7.3 | 4 |
 | Export chart (PNG/PDF/SVG) | Single-test chart PDF and PNG (SVG dropped) | 4 |
 | Settings: colors, grid, axis ranges, autoscale | Settings screen; theme presets instead of a free color picker | 5 |
+| — (new) | Settings panes: Date & Time, Wi-Fi, Upload, Display, Technicians, Company, About/OTA | 2, 5 |
 | Company name, technician list management | Settings screen | 5 |
 | — (new) | OTA update of the HMI app | 5 |
 
@@ -360,9 +380,8 @@ Effort estimates assume one developer experienced with ESP-IDF and LVGL, with th
 
 ## 11. Open Items
 
-1. **Storage Share instance URL** (`nxXXXXX.your-storageshare.de` or a custom domain). Needed for Phase 0. Do not send the app password through chat or commit it; enter it on the device.
-2. **Time zone** for test timestamps. Assumed America/New_York.
-3. **Desktop defects D1–D3**: schedule as a separate TensileCompanion PR (independent of HMI and firmware work).
+1. **Service account setup** (Section 6.1) on `nx80213.your-storageshare.de`, done before Phase 0. Do not send the app password through chat or commit it; enter it on the device.
+2. **Desktop defects D1–D3**: schedule as a separate TensileCompanion PR (independent of HMI and firmware work).
 
 ---
 
