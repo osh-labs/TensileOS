@@ -84,8 +84,10 @@ int tr_file_commit(tr_file_t *f)
         /* FAT rename() does not replace an existing file. */
         unlink(f->path);
         if (rename(f->tmp, f->path) != 0) {
-            ESP_LOGE(TAG, "rename %s failed: errno %d", f->tmp, errno);
-            rc = TR_ERR_IO;
+            /* Keep the complete .tmp: it is the only copy left after the unlink above. */
+            ESP_LOGE(TAG, "rename %s failed: errno %d; complete file kept as %s", f->tmp, errno, f->tmp);
+            release(f);
+            return TR_ERR_IO;
         }
     }
     if (rc != TR_OK) {

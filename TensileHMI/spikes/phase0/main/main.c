@@ -174,7 +174,10 @@ void app_main(void)
     /* Display first so failures below are visible on screen. */
     lv_display_t *disp = bsp_display_start();
     if (disp) {
-        bsp_display_rotate(disp, LV_DISPLAY_ROTATION_90); /* panel is 720x1280 portrait */
+        if (bsp_display_lock(0)) {
+            bsp_display_rotate(disp, LV_DISPLAY_ROTATION_90); /* panel is 720x1280 portrait */
+            bsp_display_unlock();
+        }
         bsp_display_brightness_set(70);
     }
 

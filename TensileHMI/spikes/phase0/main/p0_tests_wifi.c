@@ -19,9 +19,11 @@
 #define WIFI_FAIL_BIT      BIT1
 
 static EventGroupHandle_t s_wifi_ev;
-static bool s_inited;
+static esp_netif_t *s_sta_netif;
+static bool s_wifi_inited, s_wifi_started;
 static volatile bool s_up;
 static int s_disconnect_reason;
+static esp_netif_ip_info_t s_ip; /* logged by the worker, not the small event task */
 
 bool p0_wifi_is_up(void)
 {
@@ -37,37 +39,41 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         xEventGroupSetBits(s_wifi_ev, WIFI_FAIL_BIT);
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t *e = data;
-        p0_log("Got IP " IPSTR "  gw " IPSTR, IP2STR(&e->ip_info.ip), IP2STR(&e->ip_info.gw));
+        s_ip = e->ip_info;
         s_up = true;
         xEventGroupSetBits(s_wifi_ev, WIFI_CONNECTED_BIT);
     }
 }
 
+/* Each one-time step has its own flag so a retry after a failed esp_wifi_init()
+ * (C6 link down) does not recreate the netif, which would assert. */
 static esp_err_t wifi_init_once(void)
 {
-    if (s_inited) {
-        return ESP_OK;
+    if (!s_sta_netif) {
+        /* tp_init() already powered the C6; enabling again is harmless. */
+        bsp_feature_enable(BSP_FEATURE_WIFI, true);
+        s_wifi_ev = xEventGroupCreate();
+        ESP_RETURN_ON_ERROR(esp_netif_init(), "p0_wifi", "netif");
+        esp_err_t err = esp_event_loop_create_default();
+        if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+            return err;
+        }
+        s_sta_netif = esp_netif_create_default_wifi_sta();
+        esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, on_event, NULL);
+        esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, on_event, NULL);
     }
-    /* The BSP gates the C6 behind an IO-expander enable line. */
-    ESP_RETURN_ON_ERROR(bsp_feature_enable(BSP_FEATURE_WIFI, true), "p0_wifi", "C6 enable");
-    vTaskDelay(pdMS_TO_TICKS(300));
-
-    s_wifi_ev = xEventGroupCreate();
-    ESP_RETURN_ON_ERROR(esp_netif_init(), "p0_wifi", "netif");
-    esp_err_t err = esp_event_loop_create_default();
-    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-        return err;
+    if (!s_wifi_inited) {
+        wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+        int64_t t0 = esp_timer_get_time();
+        ESP_RETURN_ON_ERROR(esp_wifi_init(&cfg), "p0_wifi", "esp_wifi_init (hosted link to C6)");
+        p0_log("esp_wifi_init over esp_hosted took %lld ms", (esp_timer_get_time() - t0) / 1000);
+        s_wifi_inited = true;
     }
-    esp_netif_create_default_wifi_sta();
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    int64_t t0 = esp_timer_get_time();
-    ESP_RETURN_ON_ERROR(esp_wifi_init(&cfg), "p0_wifi", "esp_wifi_init (hosted link to C6)");
-    p0_log("esp_wifi_init over esp_hosted took %lld ms", (esp_timer_get_time() - t0) / 1000);
-    esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, on_event, NULL);
-    esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, on_event, NULL);
-    ESP_RETURN_ON_ERROR(esp_wifi_set_mode(WIFI_MODE_STA), "p0_wifi", "mode");
-    ESP_RETURN_ON_ERROR(esp_wifi_start(), "p0_wifi", "start");
-    s_inited = true;
+    if (!s_wifi_started) {
+        ESP_RETURN_ON_ERROR(esp_wifi_set_mode(WIFI_MODE_STA), "p0_wifi", "mode");
+        ESP_RETURN_ON_ERROR(esp_wifi_start(), "p0_wifi", "start");
+        s_wifi_started = true;
+    }
     return ESP_OK;
 }
 
@@ -79,7 +85,7 @@ static void log_scan(void)
         return;
     }
     uint16_t n = 12;
-    wifi_ap_record_t aps[12];
+    static wifi_ap_record_t aps[12]; /* worker task only */
     esp_wifi_scan_get_ap_records(&n, aps);
     p0_log("Scan: %u networks", n);
     for (int i = 0; i < n; i++) {
@@ -122,6 +128,7 @@ p0_result_t p0_test_wifi(void)
     int64_t dt = (esp_timer_get_time() - t0) / 1000;
 
     if (bits & WIFI_CONNECTED_BIT) {
+        p0_log("Got IP " IPSTR "  gw " IPSTR, IP2STR(&s_ip.ip), IP2STR(&s_ip.gw));
         wifi_ap_record_t ap;
         int rssi = esp_wifi_sta_get_ap_info(&ap) == ESP_OK ? ap.rssi : 0;
         p0_record("wifi", P0_PASS, "connected to \"%s\" in %lld ms, RSSI %d dBm", g_p0_cfg.wifi_ssid, dt, rssi);

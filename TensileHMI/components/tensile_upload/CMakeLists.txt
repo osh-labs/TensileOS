@@ -6,5 +6,5 @@ idf_component_register(
         "core/tu_propfind.c"
         "core/tu_plan.c"
     INCLUDE_DIRS "include" "core"
-    PRIV_REQUIRES esp_http_client esp-tls mbedtls
+    PRIV_REQUIRES esp_http_client esp-tls mbedtls esp_timer
 )

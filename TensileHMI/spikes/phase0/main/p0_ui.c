@@ -3,6 +3,7 @@
  * Landscape 1280x720 after rotation. All LVGL calls take the BSP display lock
  * unless already running in the LVGL task.
  */
+#include <stdlib.h>
 #include <string.h>
 
 #include "bsp/esp-bsp.h"
@@ -11,7 +12,7 @@
 #include "p0.h"
 
 #define MAX_TESTS       16
-#define CONSOLE_MAX_LEN 12000
+#define CONSOLE_MAX_LEN 8000
 
 static lv_obj_t *s_status[MAX_TESTS];
 static lv_obj_t *s_console;
@@ -124,10 +125,13 @@ void p0_ui_console_append(const char *line)
     if (bsp_display_lock(1000)) {
         /* Keep the console bounded: drop the oldest half when full. */
         const char *txt = lv_textarea_get_text(s_console);
-        size_t len = strlen(txt);
+        size_t len = txt ? strlen(txt) : 0;
         if (len > CONSOLE_MAX_LEN) {
+            /* Copy first: set_text frees the old buffer before reading the new text. */
             const char *cut = strchr(txt + len / 2, '\n');
-            lv_textarea_set_text(s_console, cut ? cut + 1 : "");
+            char *keep = strdup(cut ? cut + 1 : "");
+            lv_textarea_set_text(s_console, keep ? keep : "");
+            free(keep);
         }
         lv_textarea_add_text(s_console, line);
         lv_textarea_add_text(s_console, "\n");

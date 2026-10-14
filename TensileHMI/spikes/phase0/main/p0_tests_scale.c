@@ -8,6 +8,7 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/task.h"
 #include "esp_timer.h"
 #include "bsp/esp-bsp.h"
 
@@ -17,7 +18,7 @@
 
 #define TRANSCRIPT_PATH P0_OUT_DIR "/scale_transcript.txt"
 
-static bool s_link_started;
+static bool s_usb_host_started, s_link_started;
 static FILE *s_transcript;
 
 /* Runs in the link task. Lines arrive at ~2 Hz, faster during the boot dump. */
@@ -35,14 +36,21 @@ static esp_err_t ensure_link(void)
     if (s_link_started) {
         return ESP_OK;
     }
-    esp_err_t err = bsp_usb_host_start(BSP_USB_HOST_POWER_MODE_USB_DEV, false);
-    if (err != ESP_OK) {
-        p0_log("bsp_usb_host_start: %s", esp_err_to_name(err));
-        return err;
+    esp_err_t err;
+    if (!s_usb_host_started) {
+        /* Installs the USB Host library; a second call would abort (BSP error check). */
+        err = bsp_usb_host_start(BSP_USB_HOST_POWER_MODE_USB_DEV, false);
+        if (err != ESP_OK) {
+            p0_log("bsp_usb_host_start: %s", esp_err_to_name(err));
+            return err;
+        }
+        s_usb_host_started = true;
     }
-    s_transcript = fopen(TRANSCRIPT_PATH, "a");
-    if (s_transcript) {
-        fprintf(s_transcript, "---- link start (columns: link ms, raw line) ----\n");
+    if (!s_transcript) {
+        s_transcript = fopen(TRANSCRIPT_PATH, "a");
+        if (s_transcript) {
+            fprintf(s_transcript, "---- link start (columns: link ms, raw line) ----\n");
+        }
     }
     tl_config_t cfg;
     tl_config_default(&cfg);
@@ -132,6 +140,9 @@ p0_result_t p0_test_usb_scale(void)
     p0_log("Scale ready (paused, JSON) %lld ms after the test started", ready_ms);
 
     /* 2. New test: ack, then 10 s of samples. Apply load to the cell now for a visible peak. */
+    tl_proto_stats_t st0;
+    uint32_t rx_drop0 = 0, ev_drop0 = 0;
+    tl_get_stats(&st0, &rx_drop0, &ev_drop0);
     drain_events();
     p0_log("Starting a 10 s test; load the cell if you can");
     tl_cmd_new_test();
@@ -176,6 +187,8 @@ p0_result_t p0_test_usb_scale(void)
     tl_proto_stats_t st;
     uint32_t rx_drop = 0, ev_drop = 0;
     tl_get_stats(&st, &rx_drop, &ev_drop);
+    rx_drop -= rx_drop0; /* this run only */
+    ev_drop -= ev_drop0;
     double mean_dt = n > 1 ? sum_dt / (n - 1) : 0;
     p0_log("Samples %u, first ts %.3f s, mean interval %.3f s, peak %.3f kN, paused %d, rx dropped %lu, events "
            "dropped %lu", n, first_ts, mean_dt, peak, paused, (unsigned long)rx_drop, (unsigned long)ev_drop);
@@ -204,7 +217,13 @@ static void log_edge(const char *name, const tl_probe_edge_t *e)
 
 p0_result_t p0_test_dtr_probe(void)
 {
-    if (ensure_link() != ESP_OK || tl_get_state() == TL_ST_DETACHED) {
+    if (ensure_link() == ESP_OK) {
+        /* The link task may not have seen the attach yet right after start. */
+        for (int i = 0; i < 30 && tl_get_state() == TL_ST_DETACHED; i++) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+    }
+    if (!s_link_started || tl_get_state() == TL_ST_DETACHED) {
         p0_record("dtr", P0_FAIL, "scale not attached; run 'Scale on USB-A' first");
         return P0_FAIL;
     }

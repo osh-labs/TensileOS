@@ -559,7 +559,7 @@ void tl_config_default(tl_config_t *cfg)
     cfg->pid = TL_FTDI_PID_FT231X;
     tl_proto_cfg_default(&cfg->proto);
     cfg->task_priority = 5;
-    cfg->task_stack = 4096;
+    cfg->task_stack = 6144; /* raw_line_cb may do FAT I/O */
     cfg->task_core = tskNO_AFFINITY;
     cfg->event_queue_len = 64;
     cfg->install_cdc_driver = true;
@@ -577,8 +577,13 @@ esp_err_t tl_start(const tl_config_t *cfg)
     ESP_RETURN_ON_FALSE(s_cfg.task_priority < s_cfg.cdc_driver_priority || !s_cfg.install_cdc_driver,
                         ESP_ERR_INVALID_ARG, TAG, "link task priority must be below the CDC driver's");
 
-    s_ctl = xQueueCreate(TL_CTL_QUEUE_LEN, sizeof(tl_msg_t));
-    s_evt = xQueueCreate(s_cfg.event_queue_len, sizeof(tl_evt_t));
+    /* Queues survive a failed start so a retry does not leak them. */
+    if (!s_ctl) {
+        s_ctl = xQueueCreate(TL_CTL_QUEUE_LEN, sizeof(tl_msg_t));
+    }
+    if (!s_evt) {
+        s_evt = xQueueCreate(s_cfg.event_queue_len, sizeof(tl_evt_t));
+    }
     ESP_RETURN_ON_FALSE(s_ctl && s_evt, ESP_ERR_NO_MEM, TAG, "queues");
 
     tl_proto_init(&s_p, &s_cfg.proto);
@@ -593,7 +598,11 @@ esp_err_t tl_start(const tl_config_t *cfg)
         };
         /* ESP_ERR_INVALID_STATE: already installed, or the USB Host library is
          * not installed yet (call bsp_usb_host_start() first). */
-        ESP_RETURN_ON_ERROR(cdc_acm_host_install(&drv), TAG, "cdc_acm_host_install");
+        static bool s_cdc_installed;
+        if (!s_cdc_installed) {
+            ESP_RETURN_ON_ERROR(cdc_acm_host_install(&drv), TAG, "cdc_acm_host_install");
+            s_cdc_installed = true;
+        }
     } else {
         ESP_RETURN_ON_ERROR(cdc_acm_host_register_new_dev_callback(new_dev_cb), TAG,
                             "register new_dev_cb");

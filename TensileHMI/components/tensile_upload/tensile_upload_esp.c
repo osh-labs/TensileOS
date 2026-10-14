@@ -25,6 +25,7 @@
 #include "esp_heap_caps.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "esp_tls.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -157,8 +158,14 @@ typedef struct {
     bool resp_truncated;
 } tu_req_t;
 
+/* Keep-alive bookkeeping: a pooled socket can be closed by the server while idle,
+ * and esp_http_client reuses it without checking. */
+#define TU_IDLE_CLOSE_US (4 * 1000000LL) /* below typical Apache/Nextcloud keep-alive (5 s) */
+static bool s_conn_maybe_open;
+static int64_t s_last_done_us;
+
 /* Caller holds the mutex. */
-static esp_err_t do_request(tu_req_t *r, tu_response_t *out)
+static esp_err_t do_request_once(tu_req_t *r, tu_response_t *out)
 {
     memset(out, 0, sizeof *out);
     out->cls.retry_after_s = -1;
@@ -262,7 +269,11 @@ static esp_err_t do_request(tu_req_t *r, tu_response_t *out)
         r->resp_truncated = !esp_http_client_is_complete_data_received(s_client);
     }
     if (reusable && esp_http_client_flush_response(s_client, NULL) != ESP_OK) reusable = false;
-    if (!reusable || !esp_http_client_is_persistent_connection(s_client)) esp_http_client_close(s_client);
+    if (!reusable || !esp_http_client_is_persistent_connection(s_client)) {
+        esp_http_client_close(s_client);
+    } else {
+        s_conn_maybe_open = true;
+    }
 
     out->err = ESP_OK;
     out->net = TU_NET_OK;
@@ -351,6 +362,30 @@ void tu_client_deinit(void)
 bool tu_client_auth_blocked(void) { return s_auth_blocked; }
 
 /* ---- requests -------------------------------------------------------------- */
+
+/* Caller holds the mutex. Closes a long-idle pooled connection first, and retries
+ * once on a transport error over a reused connection (stale keep-alive socket).
+ * The retry is safe: PUT carries If-None-Match/If-Match, MKCOL and PROPFIND are idempotent. */
+static esp_err_t do_request(tu_req_t *r, tu_response_t *out)
+{
+    int64_t now = esp_timer_get_time();
+    if (s_conn_maybe_open && s_client && now - s_last_done_us > TU_IDLE_CLOSE_US) {
+        esp_http_client_close(s_client);
+        s_conn_maybe_open = false;
+    }
+    bool reused = s_conn_maybe_open;
+    long file_pos = r->file ? ftell(r->file) : 0;
+    s_conn_maybe_open = false;
+    esp_err_t err = do_request_once(r, out);
+    if (out->net != TU_NET_OK && reused && out->cls.result == TU_RES_RETRY_LATER &&
+        (!r->file || fseek(r->file, file_pos, SEEK_SET) == 0)) {
+        ESP_LOGI(TAG, "%s %s: retrying once on a fresh connection", method_name(r->method), r->path);
+        s_conn_maybe_open = false;
+        err = do_request_once(r, out);
+    }
+    s_last_done_us = esp_timer_get_time();
+    return err;
+}
 
 static esp_err_t propfind_locked(const char *path, int depth, tu_propfind_out_t *out)
 {

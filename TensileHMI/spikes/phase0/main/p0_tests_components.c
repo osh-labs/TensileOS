@@ -111,7 +111,7 @@ p0_result_t p0_test_webdav(void)
            renamed ? "renamed, original kept" : "NOT renamed - check If-None-Match handling");
 
     /* 4. Listing of Phase0/ to confirm both files and ETags. */
-    tu_dav_entry_t entries[8];
+    static tu_dav_entry_t entries[8]; /* worker task only; keeps TLS headroom on the stack */
     tu_propfind_out_t pf = { .entries = entries, .max_entries = 8 };
     tu_propfind(P0_REMOTE_DIR "/", 1, &pf);
     p0_log("PROPFIND Phase0/ depth 1: HTTP %d, %u entries%s", pf.resp.cls.http_status, (unsigned)pf.n_entries,
