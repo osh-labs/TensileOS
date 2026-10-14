@@ -1,0 +1,33 @@
+# Host unit tests: builds components/*/core/*.c and test_*.c with the host compiler.
+# Usage: cmake -S TensileHMI/test/host -B build/host && cmake --build build/host && ctest --test-dir build/host --output-on-failure
+cmake_minimum_required(VERSION 3.16)
+project(tensilehmi_host_tests C)
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+add_compile_options(-Wall -Wextra -Werror -g -fsanitize=address,undefined)
+add_link_options(-fsanitize=address,undefined)
+enable_testing()
+
+set(COMP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../components)
+file(GLOB COMPONENTS LIST_DIRECTORIES true ${COMP_DIR}/*)
+foreach(comp_path ${COMPONENTS})
+    if(IS_DIRECTORY ${comp_path}/core)
+        get_filename_component(comp ${comp_path} NAME)
+        file(GLOB core_srcs ${comp_path}/core/*.c)
+        if(core_srcs)
+            add_library(${comp}_core STATIC ${core_srcs})
+            target_include_directories(${comp}_core PUBLIC ${comp_path}/core ${comp_path}/include)
+            target_link_libraries(${comp}_core PUBLIC m)
+            set(test_src ${CMAKE_CURRENT_SOURCE_DIR}/test_${comp}.c)
+            if(EXISTS ${test_src})
+                add_executable(test_${comp} ${test_src})
+                target_include_directories(test_${comp} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+                target_link_libraries(test_${comp} PRIVATE ${comp}_core)
+                target_compile_definitions(test_${comp} PRIVATE
+                    FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../../TensileCompanion/Tests/2026-01-20"
+                    OUT_DIR="${CMAKE_CURRENT_BINARY_DIR}")
+                add_test(NAME test_${comp} COMMAND test_${comp})
+            endif()
+        endif()
+    endif()
+endforeach()
