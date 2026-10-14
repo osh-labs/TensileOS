@@ -1,0 +1,6 @@
+## tab5_power managed dependencies
+dependencies:
+  idf: ">=5.5"
+  espressif/m5stack_tab5:
+    version: "^1.3.2"
+    public: false
