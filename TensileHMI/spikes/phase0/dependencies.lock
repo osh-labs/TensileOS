@@ -404,6 +404,41 @@ dependencies:
     - esp32h4
     - linux
     version: 1.6.0
+  espressif/usb_host_cdc_acm:
+    component_hash: 5bc1372b46de79ccae1dd17de48e30dfa1e8ab75269c2ebf54da01370f9e42fb
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    - name: espressif/usb
+      registry_url: https://components.espressif.com
+      require: public
+      rules:
+      - if: idf_version >=6.0
+      - if: target not in ["linux"]
+      version: ^1.0.0
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    targets:
+    - esp32s2
+    - esp32s3
+    - esp32p4
+    - esp32h4
+    - esp32s31
+    - linux
+    version: 2.4.1
+  espressif/usb_host_ftdi_vcp:
+    component_hash: efa8896db30feeb44aa71b13ef4488bf85af650589c66f79c35aaee75b105ae1
+    dependencies:
+    - name: espressif/usb_host_cdc_acm
+      registry_url: https://components.espressif.com
+      require: public
+      version: ^2.3.0
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 2.1.1
   espressif/usb_host_uvc:
     component_hash: f20c4e4dea50536e2e29daaf589b5f5984402284c155867daef27d6b64869f78
     dependencies:
@@ -480,8 +515,10 @@ direct_dependencies:
 - espressif/esp_hosted
 - espressif/esp_wifi_remote
 - espressif/m5stack_tab5
+- espressif/usb_host_cdc_acm
+- espressif/usb_host_ftdi_vcp
 - idf
 - lvgl/lvgl
-manifest_hash: 2879198231bb2a53d508dcc2f2aed17869428e288e9a31118e445790375fa379
+manifest_hash: 09f7b2a6c1f39ad895e691eb588e634848f8676b29bf3d37e5904d7cb9a0acf7
 target: esp32p4
 version: 2.0.0
