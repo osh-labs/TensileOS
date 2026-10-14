@@ -197,7 +197,7 @@ CONFIG_ESP_HOSTED_SLAVE_RESET_ON_EVERY_HOST_BOOTUP=y
 ```
 
 Symbols checked against HOSTED2 `Kconfig` and WR 1.6.5 `Kconfig`/`Kconfig.rpc.in`.
-BUILD-CHECK: see section 4.
+Build-checked 2026-10-14: a scratch ESP-IDF v5.5.5 esp32p4 project with exactly the 2.3 manifest (minus the BSP) and this fragment resolves esp_hosted 2.12.13 + esp_wifi_remote 1.6.5, builds with no warnings, and the generated sdkconfig shows the Tab5 preset values (pins 13/12/11/10/9/8, reset 15 active-low, slave esp32c6). The link to a real C6 is not tested yet.
 
 Power ordering for Wi-Fi: `tp_init()` (C6 power via WLAN_PWR_EN) → `esp_wifi_init()` (esp_hosted resets the
 C6 through GPIO15 and enumerates SDIO).

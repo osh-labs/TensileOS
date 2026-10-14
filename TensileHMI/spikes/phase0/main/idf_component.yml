@@ -1,0 +1,7 @@
+## Phase 0 managed dependencies (versions per TensileHMI/docs/phase0_hw_notes.md 2.3)
+dependencies:
+  idf: ">=5.5"
+  espressif/m5stack_tab5: "^1.3.2"
+  espressif/esp_hosted: "~2.12.13"      # pinned: esp_wifi_remote 1.6.5 would otherwise pull 3.x
+  espressif/esp_wifi_remote: "~1.6.5"
+  lvgl/lvgl: "~9.6.0"                   # pinned for reproducible UI builds

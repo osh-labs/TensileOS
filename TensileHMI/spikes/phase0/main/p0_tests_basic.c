@@ -13,6 +13,7 @@
 #include "driver/i2c_master.h"
 #include "esp_heap_caps.h"
 #include "esp_netif_sntp.h"
+#include "esp_random.h"
 #include "esp_timer.h"
 #include "esp_vfs_fat.h"
 #include "bsp/esp-bsp.h"
@@ -24,16 +25,14 @@
 
 /* Known addresses on the Tab5 internal bus (see docs/phase0_hw_notes.md). */
 static const struct { uint8_t addr; const char *name; } k_known[] = {
-    { 0x14, "GT911 touch (alt)" },
+    { 0x14, "GT911 touch -> display variant ILI9881C" },
     { 0x5D, "GT911 touch" },
-    { 0x55, "ST7123 touch (expected)" },
+    { 0x55, "ST7123/ST7121 touch -> display variant ST7123" },
     { 0x43, "PI4IOE5V6408 IO expander #0" },
-    { 0x44, "PI4IOE5V6408 IO expander #1" },
-    { 0x40, "INA226 (candidate)" },
-    { 0x41, "INA226 (candidate)" },
+    { 0x44, "PI4IOE5V6408 IO expander #1 (power)" },
+    { 0x41, "INA226 battery monitor" },
     { 0x32, "RX8130CE RTC" },
     { 0x10, "ES8388 codec" },
-    { 0x40, "ES7210 mic ADC (shares 0x40 range)" },
     { 0x68, "BMI270 IMU" },
 };
 
@@ -152,7 +151,7 @@ p0_result_t p0_test_display(void)
     lv_obj_set_size(s_overlay, LV_PCT(100), LV_PCT(100));
     lv_obj_set_style_radius(s_overlay, 0, 0);
     lv_obj_set_style_border_width(s_overlay, 0, 0);
-    lv_obj_remove_flag(s_overlay, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(s_overlay, false);
     lv_display_t *disp = lv_display_get_default();
     int w = lv_display_get_horizontal_resolution(disp);
     int h = lv_display_get_vertical_resolution(disp);

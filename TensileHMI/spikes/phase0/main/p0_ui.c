@@ -98,7 +98,7 @@ void p0_ui_init(const p0_test_t *tests, size_t n)
     lv_obj_set_height(s_console, LV_PCT(100));
     lv_textarea_set_text(s_console, "");
     lv_textarea_set_cursor_click_pos(s_console, false);
-    lv_obj_remove_flag(s_console, LV_OBJ_FLAG_CLICK_FOCUSABLE);
+    lv_obj_set_click_focusable(s_console, false);
     lv_obj_set_style_text_font(s_console, &lv_font_montserrat_16, 0);
     lv_obj_set_style_bg_color(s_console, lv_color_black(), 0);
     lv_obj_set_style_text_color(s_console, lv_color_hex(0xd0d0d0), 0);

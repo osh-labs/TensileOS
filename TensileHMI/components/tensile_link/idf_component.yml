@@ -1,0 +1,7 @@
+## IDF Component Manager Manifest File
+description: TensileHMI USB serial link to the SparkFun OpenScale (FT231X) running TensileOS v1.6
+dependencies:
+  idf: ">=5.4"
+  # FTDI FT231X (0x0403:0x6015) driver; pulls in espressif/usb_host_cdc_acm ^2.3 (public).
+  espressif/usb_host_ftdi_vcp: "^2.1.1"
+  espressif/usb_host_cdc_acm: "^2.3.0"

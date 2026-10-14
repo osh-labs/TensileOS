@@ -22,6 +22,8 @@
 #include "nvs_flash.h"
 #include "bsp/esp-bsp.h"
 
+#include "tab5_power.h"
+
 #include "p0.h"
 
 static const char *TAG = "phase0";
@@ -176,6 +178,10 @@ void app_main(void)
         bsp_display_brightness_set(70);
     }
 
+    /* Must precede Wi-Fi and USB: first use of the 0x44 IO expander resets it, which
+     * drops C6 power, USB-A 5V and charging; tp_init() turns them back on. */
+    esp_err_t pwr_err = tp_init(NULL);
+
     s_sd_ok = (bsp_sdcard_mount() == ESP_OK);
     if (s_sd_ok) {
         mkdir(P0_OUT_DIR, 0775);
@@ -194,6 +200,7 @@ void app_main(void)
     }
 
     write_report_header();
+    p0_log("Power init: %s", esp_err_to_name(pwr_err));
     p0_log("SD card: %s", s_sd_ok ? "mounted at " P0_SD_ROOT : "NOT mounted - results only on screen and serial");
     p0_log("Config %s: %s", P0_CONFIG_PATH, g_p0_cfg.loaded ? "loaded" : "missing (Wi-Fi/WebDAV tests will fail)");
 
